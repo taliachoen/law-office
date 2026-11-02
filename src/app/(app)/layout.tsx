@@ -9,7 +9,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
+      <Sidebar role={user.role} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex flex-wrap items-center justify-end gap-3 border-b border-gray-200 bg-white px-4 py-3 ps-24 md:ps-4">
           <UserSwitcher users={users} currentUserId={user.id} />

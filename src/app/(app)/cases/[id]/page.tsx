@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { CaseStatusBadge } from "@/components/badges";
+import { TaskList } from "@/components/task-list";
 import { Forbidden } from "@/components/forbidden";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getCaseDetail, getCaseHistory } from "@/server/services/cases";
 import { getLabelMap } from "@/server/services/lookups";
+import { getTaskFormOptions, listTasks } from "@/server/services/tasks";
 import { DEADLINE_TYPE_LABELS, TASK_PRIORITY_LABELS, TASK_STATUS_LABELS, type DeadlineType, type TaskPriority, type TaskStatus } from "@/shared/constants";
 import { formatDateHe, formatDateTimeHe } from "@/shared/dates";
 import { guard } from "../../guard";
+import { TaskFormDialog } from "../../tasks/task-dialogs";
 import { CaseFormDialog, MembersDialog } from "../case-dialogs";
 import { loadCaseFormOptions } from "../form-options";
 
@@ -19,9 +22,10 @@ function Fact({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-// רק הלשוניות שכבר נבנו מופיעות (משימות, מסמכים, מועדים ומיילים יתווספו בשלבים הבאים)
+// רק הלשוניות שכבר נבנו מופיעות (מסמכים, מועדים ומיילים יתווספו בשלבים הבאים)
 const TABS = [
   { key: "overview", label: "סקירה" },
+  { key: "tasks", label: "משימות" },
   { key: "history", label: "היסטוריה" },
 ] as const;
 
@@ -33,7 +37,7 @@ export default async function CasePage({
 }) {
   const { id } = await params;
   const { tab } = await searchParams;
-  const activeTab = tab === "history" ? "history" : "overview";
+  const activeTab = tab === "history" || tab === "tasks" ? tab : "overview";
   const user = await getCurrentUser();
   const isManager = user.role === "MANAGER";
 
@@ -47,6 +51,9 @@ export default async function CasePage({
     isManager ? loadCaseFormOptions(user, { caseType: c.caseType, court: c.court }) : null,
   ]);
   const history = activeTab === "history" ? await getCaseHistory(user, id) : [];
+  const caseTasks = activeTab === "tasks" ? await listTasks(user, { caseId: id }) : [];
+  // טופס משימה חדשה בתוך התיק: רק התיק הנוכחי, ורק אם הוא לא סגור
+  const taskFormCases = activeTab === "tasks" && isManager ? (await getTaskFormOptions(user)).filter((o) => o.id === id) : [];
 
   return (
     <div className="space-y-6">
@@ -139,7 +146,7 @@ export default async function CasePage({
               <ul className="divide-y divide-gray-100">
                 {openTasks.map((t) => (
                   <li key={t.id} className="py-2">
-                    <div className="font-medium">{t.title}</div>
+                    <Link href={`/tasks/${t.id}`} className="font-medium text-navy-700 hover:underline">{t.title}</Link>
                     <div className="text-sm text-gray-600">
                       {TASK_STATUS_LABELS[t.status as TaskStatus] ?? t.status} · עדיפות {TASK_PRIORITY_LABELS[t.priority as TaskPriority] ?? t.priority}
                       {t.assignee ? ` · ${t.assignee.name}` : ""}
@@ -151,6 +158,14 @@ export default async function CasePage({
             )}
           </section>
         </div>
+      ) : activeTab === "tasks" ? (
+        <section aria-labelledby="case-tasks" className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 id="case-tasks" className="font-semibold">משימות התיק</h2>
+            {taskFormCases.length > 0 && <TaskFormDialog cases={taskFormCases} defaultCaseId={id} />}
+          </div>
+          <TaskList tasks={caseTasks} showCase={false} emptyText="אין משימות בתיק הזה" />
+        </section>
       ) : (
         <section aria-labelledby="history" className="rounded-lg border border-gray-200 bg-white p-4">
           <h2 id="history" className="mb-2 font-semibold">היסטוריית התיק</h2>

@@ -11,20 +11,21 @@ import type { ActionState } from "@/server/actions";
 type FormAction = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
 /** כפתור שליחה שננעל בזמן שליחה (מניעת לחיצה כפולה). חייב להיות בתוך ה-form. */
-function SubmitButton({ label }: { label: string }) {
+function SubmitButton({ label, className }: { label: string; className?: string }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending}>
+    <Button type="submit" disabled={pending} className={className}>
       {pending ? "שומר..." : label}
     </Button>
   );
 }
 
 function DialogForm({
-  action, submitLabel, onDone, children,
+  action, submitLabel, submitClassName, onDone, children,
 }: {
   action: FormAction;
   submitLabel: string;
+  submitClassName?: string;
   onDone: (result: ActionState) => void;
   children: (errors: Record<string, string>) => React.ReactNode;
 }) {
@@ -48,7 +49,7 @@ function DialogForm({
       )}
       <DialogFooter>
         <DialogClose render={<Button type="button" variant="outline" />}>ביטול</DialogClose>
-        <SubmitButton label={submitLabel} />
+        <SubmitButton label={submitLabel} className={submitClassName} />
       </DialogFooter>
     </form>
   );
@@ -56,12 +57,15 @@ function DialogForm({
 
 /** חלונית עם טופס. הכפתור שפותח אותה והתוכן נקבעים על ידי הרכיב שמשתמש בה. */
 export function FormDialog({
-  triggerLabel, triggerVariant = "default", triggerSize = "default", title, description, submitLabel,
-  action, onSuccess, children,
+  triggerLabel, triggerVariant = "default", triggerSize = "default", triggerClassName, submitClassName, title, description,
+  submitLabel, action, onSuccess, children,
 }: {
   triggerLabel: string;
   triggerVariant?: "default" | "outline" | "ghost" | "secondary";
   triggerSize?: "default" | "sm";
+  /** צבע סמנטי לפעולה: כתום = החזרה לתיקון, ירוק = סיום */
+  triggerClassName?: string;
+  submitClassName?: string;
   title: string;
   description?: string;
   submitLabel: string;
@@ -73,7 +77,7 @@ export function FormDialog({
 
   return (
     <>
-      <Button type="button" variant={triggerVariant} size={triggerSize} onClick={() => setOpen(true)}>
+      <Button type="button" variant={triggerVariant} size={triggerSize} className={triggerClassName} onClick={() => setOpen(true)}>
         {triggerLabel}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -85,6 +89,7 @@ export function FormDialog({
           <DialogForm
             action={action}
             submitLabel={submitLabel}
+            submitClassName={submitClassName}
             onDone={(result) => {
               setOpen(false);
               onSuccess?.(result);

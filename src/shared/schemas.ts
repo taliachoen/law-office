@@ -1,11 +1,19 @@
 import { z } from "zod";
-import { CASE_STATUSES, CLIENT_TYPES } from "./constants";
+import { CASE_STATUSES, CLIENT_TYPES, TASK_PRIORITIES } from "./constants";
+import { TASK_COMMANDS } from "./task-flow";
 
 // סכמות zod משותפות. בכל Server Action הקלט מאומת כאן, בשרת, לפני שמגיעים לשירות.
 
 export const isoDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "תאריך חייב להיות בפורמט YYYY-MM-DD");
+
+/** תאריך אמיתי בפורמט YYYY-MM-DD (דוחה למשל 2026-02-31). */
+export const realIsoDateSchema = isoDateSchema.refine((d) => {
+  const parsed = new Date(`${d}T00:00:00Z`);
+  // תאריך כמו 2026-13-45 נותן Invalid Date, ו-2026-02-31 מתגלגל לחודש הבא: שניהם נדחים
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === d;
+}, "תאריך לא קיים");
 
 export const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "שעה חייבת להיות בפורמט HH:mm");
 
@@ -78,3 +86,25 @@ export function formToObject(fd: FormData): Record<string, unknown> {
   }
   return out;
 }
+
+// ---- משימות ----
+
+export const taskInputSchema = z.object({
+  caseId: idField("יש לבחור תיק"),
+  title: z.string({ error: "יש להזין כותרת" }).trim().min(2, "יש להזין כותרת (לפחות 2 תווים)").max(200, "עד 200 תווים"),
+  instructions: blankable(z.string().trim().max(4000, "עד 4000 תווים")),
+  priority: z.enum(TASK_PRIORITIES, { error: "יש לבחור עדיפות" }),
+  assigneeId: blankable(z.string().min(1)),
+  dueDate: blankable(realIsoDateSchema),
+});
+export type TaskInput = z.infer<typeof taskInputSchema>;
+
+// מעבר במכונת המצבים. חובת הטקסט (הערה/סיכום/סיבה) נאכפת בשירות לפי הפקודה.
+export const taskCommandSchema = z.object({
+  taskId: idField("משימה לא נבחרה"),
+  command: z.enum(TASK_COMMANDS, { error: "פעולה לא מוכרת" }),
+  version: z.coerce.number({ error: "גרסה לא תקינה" }).int().positive(),
+  text: blankable(z.string().trim().max(4000, "עד 4000 תווים")),
+  assigneeId: blankable(z.string().min(1)),
+});
+export type TaskCommandInput = z.infer<typeof taskCommandSchema>;

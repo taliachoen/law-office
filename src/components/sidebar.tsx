@@ -6,13 +6,16 @@ import { useState } from "react";
 
 // רק מסכים שכבר נבנו מופיעים בתפריט (אין קישורים מתים).
 // כל שלב מוסיף כאן את המסכים שלו.
-const NAV_ITEMS = [
+const NAV_ITEMS: { href: string; label: string; managerOnly?: boolean }[] = [
   { href: "/", label: "לוח בקרה" },
   { href: "/clients", label: "לקוחות" },
   { href: "/cases", label: "תיקים" },
+  { href: "/tasks", label: "משימות" },
+  { href: "/trash", label: "סל מחזור", managerOnly: true },
 ];
 
-export function Sidebar() {
+// managerOnly רק מסתיר קישור מהתפריט; ההרשאה האמיתית נאכפת בשרת בכל מסך.
+export function Sidebar({ role }: { role: "MANAGER" | "EMPLOYEE" }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -35,7 +38,7 @@ export function Sidebar() {
       >
         <div className="px-5 pb-6 text-lg font-bold">משרד דמה</div>
         <ul className="space-y-1 px-3">
-          {NAV_ITEMS.map((item) => {
+          {NAV_ITEMS.filter((item) => !item.managerOnly || role === "MANAGER").map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return (
               <li key={item.href}>
