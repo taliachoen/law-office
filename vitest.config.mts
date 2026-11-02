@@ -7,6 +7,8 @@ export default defineConfig({
   },
   test: {
     include: ["tests/**/*.test.ts"],
+    // כל הבדיקות חולקות קובץ SQLite אחד, ולכן הקבצים רצים ברצף (אחרת נעילות כתיבה גורמות ל-timeout)
+    fileParallelism: false,
     // מסד נפרד לבדיקות, כדי שלעולם לא ייגעו בנתוני הדמה של הפיתוח
     env: { DATABASE_URL: "file:./tests/.tmp/test.db" },
     globalSetup: ["./tests/global-setup.ts"],

@@ -6,7 +6,11 @@ import { useState } from "react";
 
 // רק מסכים שכבר נבנו מופיעים בתפריט (אין קישורים מתים).
 // כל שלב מוסיף כאן את המסכים שלו.
-const NAV_ITEMS = [{ href: "/", label: "לוח בקרה" }];
+const NAV_ITEMS = [
+  { href: "/", label: "לוח בקרה" },
+  { href: "/clients", label: "לקוחות" },
+  { href: "/cases", label: "תיקים" },
+];
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -32,7 +36,7 @@ export function Sidebar() {
         <div className="px-5 pb-6 text-lg font-bold">משרד דמה</div>
         <ul className="space-y-1 px-3">
           {NAV_ITEMS.map((item) => {
-            const active = pathname === item.href;
+            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return (
               <li key={item.href}>
                 <Link
