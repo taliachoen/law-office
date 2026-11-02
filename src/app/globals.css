@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+/* פלטת המערכת: כחול כהה, לבן ואפור. כתום = תיקון/חדש, אדום = מחיקה, ירוק = הושלם/אומת. */
+@theme {
+  --color-navy-50: #eef3fa;
+  --color-navy-100: #d9e4f3;
+  --color-navy-600: #2b4f86;
+  --color-navy-700: #1f3d6b;
+  --color-navy-800: #172f55;
+  --color-navy-900: #0f2142;
+}
+
+@theme inline {
+  --font-sans: var(--font-heebo), system-ui, sans-serif;
+}
+
+body {
+  background: #f6f7f9;
+  color: #1f2937;
+}

@@ -1,0 +1,333 @@
+// סכמה מלאה לפי סעיף 5 במפרט.
+// שדות סטטוס/סוג הם String (לא enum) כדי שהמעבר ל-Postgres יהיה פשוט;
+// הערכים המותרים נמצאים ב-src/shared/constants.ts ונאכפים ב-zod.
+// orgId, deletedById, verifiedById, viewedById נשמרים כמחרוזות בלי FK:
+// orgId כדי לא לחייב back-relation בכל טבלה (RLS ב-Postgres יסתמך על העמודה עצמה),
+// והשאר כי הם נתוני תיעוד שלא צריכים להגביל מחיקה עתידית של משתמש.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  email     String
+  role      String // MANAGER | EMPLOYEE
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  caseMemberships      CaseMember[]
+  responsibleCases     Case[]            @relation("CaseResponsible")
+  assignedTasks        Task[]            @relation("TaskAssignee")
+  createdTasks         Task[]            @relation("TaskCreator")
+  taskEvents           TaskEvent[]
+  createdDocuments     Document[]
+  uploadedVersions     DocumentVersion[]
+  createdInbox         InboxItem[]
+  responsibleDeadlines Deadline[]
+
+  @@unique([orgId, email])
+  @@index([orgId])
+}
+
+model Client {
+  id          String    @id @default(cuid())
+  orgId       String
+  type        String // PERSON | COMPANY
+  fullName    String
+  idNumber    String?
+  phone       String?
+  email       String?
+  address     String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  deletedById String?
+
+  contacts Contact[]
+  cases    Case[]
+
+  @@index([orgId, deletedAt])
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  orgId     String
+  clientId  String
+  name      String
+  relation  String
+  phone     String?
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@index([orgId])
+  @@index([clientId])
+}
+
+model Case {
+  id                String    @id @default(cuid())
+  orgId             String
+  clientId          String
+  title             String
+  internalNumber    String
+  courtCaseNumber   String?
+  caseType          String
+  court             String?
+  opposingParty     String?
+  opposingCounsel   String?
+  responsibleUserId String
+  status            String // ACTIVE | PENDING | CLOSED
+  summary           String?
+  nextAction        String?
+  dropboxFolderPath String?
+  version           Int       @default(1)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+  deletedById       String?
+
+  client          Client       @relation(fields: [clientId], references: [id])
+  responsibleUser User         @relation("CaseResponsible", fields: [responsibleUserId], references: [id])
+  members         CaseMember[]
+  tasks           Task[]
+  documents       Document[]
+  inboxItems      InboxItem[]
+  deadlines       Deadline[]
+
+  @@unique([orgId, internalNumber])
+  @@index([orgId, deletedAt])
+  @@index([clientId])
+}
+
+model CaseMember {
+  id        String   @id @default(cuid())
+  orgId     String
+  caseId    String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([caseId, userId])
+  @@index([orgId])
+  @@index([userId])
+}
+
+model Task {
+  id                String    @id @default(cuid())
+  orgId             String
+  caseId            String
+  title             String
+  instructions      String?
+  priority          String // LOW | NORMAL | HIGH | URGENT
+  status            String // OPEN | ASSIGNED | IN_REVIEW | CHANGES_REQUESTED | COMPLETED
+  assigneeId        String?
+  createdById       String
+  dueDate           String? // YYYY-MM-DD
+  completionSummary String?
+  statusBeforeTrash String?
+  version           Int       @default(1)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+  deletedById       String?
+
+  case      Case        @relation(fields: [caseId], references: [id])
+  assignee  User?       @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdBy User        @relation("TaskCreator", fields: [createdById], references: [id])
+  events    TaskEvent[]
+  documents Document[]
+
+  @@index([orgId, deletedAt])
+  @@index([caseId])
+  @@index([assigneeId])
+}
+
+model TaskEvent {
+  id                String   @id @default(cuid())
+  orgId             String
+  taskId            String
+  actorId           String
+  type              String
+  note              String?
+  documentVersionId String?
+  createdAt         DateTime @default(now())
+
+  task  Task @relation(fields: [taskId], references: [id])
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([orgId])
+  @@index([taskId])
+}
+
+model Document {
+  id          String    @id @default(cuid())
+  orgId       String
+  caseId      String
+  taskId      String?
+  inboxItemId String?
+  title       String
+  source      String // UPLOAD | EMAIL | DROPBOX
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  deletedById String?
+
+  case      Case              @relation(fields: [caseId], references: [id])
+  task      Task?             @relation(fields: [taskId], references: [id])
+  inboxItem InboxItem?        @relation(fields: [inboxItemId], references: [id])
+  createdBy User              @relation(fields: [createdById], references: [id])
+  versions  DocumentVersion[]
+
+  @@index([orgId, deletedAt])
+  @@index([caseId])
+}
+
+model DocumentVersion {
+  id           String   @id @default(cuid())
+  orgId        String
+  documentId   String
+  versionNo    Int
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  storageKey   String
+  sha256       String
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  document   Document @relation(fields: [documentId], references: [id])
+  uploadedBy User     @relation(fields: [uploadedById], references: [id])
+
+  @@unique([documentId, versionNo])
+  @@index([orgId])
+}
+
+model InboxItem {
+  id          String    @id @default(cuid())
+  orgId       String
+  caseId      String? // null = "לשיוך"
+  kind        String
+  title       String
+  note        String?
+  sourceLink  String?
+  urgent      Boolean   @default(false)
+  createdById String
+  viewedById  String?
+  viewedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  deletedById String?
+
+  case      Case?      @relation(fields: [caseId], references: [id])
+  createdBy User       @relation(fields: [createdById], references: [id])
+  documents Document[]
+
+  @@index([orgId, deletedAt])
+  @@index([caseId])
+}
+
+model Deadline {
+  id                      String    @id @default(cuid())
+  orgId                   String
+  caseId                  String
+  type                    String // HEARING | LEGAL_DEADLINE | INTERNAL_TARGET
+  title                   String
+  date                    String // YYYY-MM-DD
+  time                    String? // HH:mm
+  court                   String?
+  location                String?
+  sourceDescription       String?
+  decisionDate            String?
+  serviceDate             String?
+  responsibleUserId       String
+  verification            String    @default("PENDING") // PENDING | VERIFIED
+  verifiedById            String?
+  reminderDaysBefore      Int       @default(3)
+  done                    Boolean   @default(false)
+  externalCalendarEventId String?
+  version                 Int       @default(1)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  deletedAt               DateTime?
+  deletedById             String?
+
+  case            Case @relation(fields: [caseId], references: [id])
+  responsibleUser User @relation(fields: [responsibleUserId], references: [id])
+
+  @@index([orgId, deletedAt])
+  @@index([caseId])
+  @@index([date])
+}
+
+// דמה של תיבת Gmail
+model MockEmail {
+  id            String   @id @default(cuid())
+  orgId         String
+  mailboxUserId String
+  fromName      String
+  fromEmail     String
+  toEmail       String
+  subject       String
+  snippet       String
+  body          String
+  receivedAt    DateTime
+  hasAttachment Boolean  @default(false)
+  linkedCaseId  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([orgId, mailboxUserId])
+}
+
+model IntegrationConnection {
+  id            String    @id @default(cuid())
+  orgId         String
+  provider      String // GMAIL | CALENDAR | DROPBOX
+  userId        String?
+  status        String // NOT_CONFIGURED | MOCK_CONNECTED
+  lastCheckedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([orgId])
+}
+
+// caseId הוא תוספת למפרט: מאפשר ללשונית "היסטוריה" בתיק לשלוף אירועים בלי join לכל סוגי הישויות.
+model AuditEvent {
+  id         String   @id @default(cuid())
+  orgId      String
+  actorId    String
+  entityType String
+  entityId   String
+  caseId     String?
+  action     String
+  summary    String
+  createdAt  DateTime @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([caseId])
+}
