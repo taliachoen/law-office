@@ -1,5 +1,6 @@
 // ערכי סטטוס וסוגים כקבועי TypeScript (במסד הם String, כדי שהמעבר ל-Postgres יהיה פשוט).
 // כל קבוצה מוגדרת כ-tuple כדי ש-zod ו-TypeScript יצאו מאותו מקור.
+// הקובץ מכיל רק סטטוסים של מערכת, שהלוגיקה תלויה בהם.
 
 export const ROLES = ["MANAGER", "EMPLOYEE"] as const;
 export type Role = (typeof ROLES)[number];
@@ -23,37 +24,10 @@ export const CASE_STATUS_LABELS: Record<CaseStatus, string> = {
   CLOSED: "סגור",
 };
 
-export const CASE_TYPES = [
-  "DIVORCE",
-  "ALIMONY",
-  "CUSTODY",
-  "PROPERTY_BALANCE",
-  "PRENUP",
-  "WILLS_INHERITANCE",
-  "GUARDIANSHIP",
-  "OTHER",
-] as const;
-export type CaseType = (typeof CASE_TYPES)[number];
-export const CASE_TYPE_LABELS: Record<CaseType, string> = {
-  DIVORCE: "גירושין",
-  ALIMONY: "מזונות",
-  CUSTODY: "משמורת וזמני שהות",
-  PROPERTY_BALANCE: "רכוש ואיזון משאבים",
-  PRENUP: "הסכם ממון",
-  WILLS_INHERITANCE: "צוואות וירושות",
-  GUARDIANSHIP: "אפוטרופסות",
-  OTHER: "אחר",
-};
-
-export const COURTS = ["FAMILY_COURT", "RABBINICAL_COURT", "DISTRICT_COURT", "SUPREME_COURT", "OTHER"] as const;
-export type Court = (typeof COURTS)[number];
-export const COURT_LABELS: Record<Court, string> = {
-  FAMILY_COURT: "בית משפט לענייני משפחה",
-  RABBINICAL_COURT: "בית הדין הרבני",
-  DISTRICT_COURT: "בית משפט מחוזי",
-  SUPREME_COURT: "בית המשפט העליון",
-  OTHER: "אחר",
-};
+// רשימות הניתנות להגדרה לפי ארגון (סוגי תיקים, ערכאות, סוגי חומר חדש) נשמרות בטבלה LookupOption.
+// כאן רק שמות הרשימות; ערכי ברירת המחדל ב-lookup-defaults.ts.
+export const LOOKUP_LISTS = ["CASE_TYPE", "COURT", "INBOX_KIND"] as const;
+export type LookupList = (typeof LOOKUP_LISTS)[number];
 
 export const TASK_PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
@@ -102,16 +76,6 @@ export const DOCUMENT_SOURCE_LABELS: Record<DocumentSource, string> = {
   UPLOAD: "העלאה",
   EMAIL: "מייל",
   DROPBOX: "Dropbox",
-};
-
-export const INBOX_KINDS = ["COURT_DECISION", "OPPOSING_PLEADING", "CLIENT_DOCUMENT", "LETTER", "OTHER"] as const;
-export type InboxKind = (typeof INBOX_KINDS)[number];
-export const INBOX_KIND_LABELS: Record<InboxKind, string> = {
-  COURT_DECISION: "החלטת בית משפט",
-  OPPOSING_PLEADING: "כתב טענות של צד שכנגד",
-  CLIENT_DOCUMENT: "מסמך מהלקוח",
-  LETTER: "מכתב",
-  OTHER: "אחר",
 };
 
 export const DEADLINE_TYPES = ["HEARING", "LEGAL_DEADLINE", "INTERNAL_TARGET"] as const;

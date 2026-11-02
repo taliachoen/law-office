@@ -1,4 +1,5 @@
-import type { CaseStatus, CaseType, Court } from "../../../src/shared/constants";
+import type { CaseStatus } from "../../../src/shared/constants";
+import type { DefaultCode } from "../../../src/shared/lookup-defaults";
 import type { UserKey } from "./users";
 
 // 15 תיקים. clientIdx מפנה למערך הלקוחות.
@@ -10,8 +11,8 @@ export type SeedCase = {
   title: string;
   internalNumber: string;
   courtCaseNumber?: string;
-  caseType: CaseType;
-  court?: Court;
+  caseType: DefaultCode<"CASE_TYPE">;
+  court?: DefaultCode<"COURT">;
   opposingParty?: string;
   opposingCounsel?: string;
   /** נשמר כאן כדי ש-emails.ts יוכל ליצור מיילים תואמים */

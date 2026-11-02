@@ -1,11 +1,11 @@
-import type { InboxKind } from "../../../src/shared/constants";
+import type { DefaultCode } from "../../../src/shared/lookup-defaults";
 import type { UserKey } from "./users";
 
 // 10 פריטי חומר חדש (בלי קבצים בשלב 1). caseIdx = null הוא "לשיוך".
 // 7 לא נצפו, 3 נצפו על ידי המנהלת. 2 דחופים, 2 "לשיוך".
 export type SeedInboxItem = {
   caseIdx: number | null;
-  kind: InboxKind;
+  kind: DefaultCode<"INBOX_KIND">;
   title: string;
   note?: string;
   sourceLink?: string;

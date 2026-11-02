@@ -316,6 +316,23 @@ model IntegrationConnection {
   @@index([orgId])
 }
 
+// ערכי רשימות הניתנות להגדרה לכל ארגון (סוגי תיקים, ערכאות, סוגי חומר חדש).
+// הטבלאות העסקיות שומרות את code. ערך שכבר בשימוש מכבים (active=false) ולא מוחקים.
+model LookupOption {
+  id        String   @id @default(cuid())
+  orgId     String
+  list      String // CASE_TYPE | COURT | INBOX_KIND (ראו LOOKUP_LISTS)
+  code      String
+  label     String
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, list, code])
+  @@index([orgId, list])
+}
+
 // caseId הוא תוספת למפרט: מאפשר ללשונית "היסטוריה" בתיק לשלוף אירועים בלי join לכל סוגי הישויות.
 model AuditEvent {
   id         String   @id @default(cuid())

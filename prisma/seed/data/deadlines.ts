@@ -1,4 +1,5 @@
-import type { Court, DeadlineType, DeadlineVerification } from "../../../src/shared/constants";
+import type { DeadlineType, DeadlineVerification } from "../../../src/shared/constants";
+import type { DefaultCode } from "../../../src/shared/lookup-defaults";
 import type { UserKey } from "./users";
 
 // 20 מועדים: 18 בעתיד (0-29 ימים מהיום) ו-2 שעברו. offset = ימים מהיום.
@@ -10,7 +11,7 @@ export type SeedDeadline = {
   title: string;
   offset: number;
   time?: string;
-  court?: Court;
+  court?: DefaultCode<"COURT">;
   location?: string;
   sourceDescription?: string;
   /** offsets יחסיים להיום, לתאריך ההחלטה / ההמצאה (שליליים) */

@@ -3,7 +3,8 @@ import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "../../src/generated/prisma/client";
 import { writeAudit } from "../../src/server/audit";
 import { addDays, todayIso } from "../../src/shared/dates";
-import type { TaskEventType } from "../../src/shared/constants";
+import { LOOKUP_LISTS, type TaskEventType } from "../../src/shared/constants";
+import { DEFAULT_LOOKUPS } from "../../src/shared/lookup-defaults";
 import { cases, dropboxPathFor } from "./data/cases";
 import { clients } from "./data/clients";
 import { deadlines } from "./data/deadlines";
@@ -43,6 +44,13 @@ async function main() {
         userId[u.key] = created.id;
       }
       const manager = userId.manager;
+
+      // ---- רשימות הניתנות להגדרה: ברירות המחדל של דיני משפחה ----
+      for (const list of LOOKUP_LISTS) {
+        for (const [sortOrder, opt] of DEFAULT_LOOKUPS[list].entries()) {
+          await tx.lookupOption.create({ data: { orgId, list, code: opt.code, label: opt.label, sortOrder } });
+        }
+      }
 
       // ---- לקוחות ואנשי קשר ----
       const clientIds: string[] = [];
