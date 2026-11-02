@@ -30,4 +30,15 @@
 - הסבר בקצרה בעברית כל החלטה ארכיטקטונית, כדי שהמפתחת תבין את הקוד.
 
 ## פקודות
-(עדכן כאן רק פקודות שמומשו ונבדקו בפועל.)
+| פקודה | מה עושה |
+| --- | --- |
+| `npm run dev` | שרת פיתוח (http://localhost:3000) |
+| `npm run build` | בניית production |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | בדיקת טיפוסים |
+| `npm test` | Vitest, על מסד נפרד ב-`tests/.tmp/test.db` |
+| `npm run db:migrate` | יצירה והחלה של migration (פיתוח) |
+| `npm run db:seed` | נתוני דמה; מסרב לרוץ על מסד שכבר מכיל נתונים |
+| `npm run db:reset` | מחיקת המסד, migrations ו-seed (Prisma ידרוש הסכמה מפורשת אם מריצים אותו דרך סוכן AI) |
+
+הערה: `db:reset` עדיין לא הורץ מקצה לקצה; רכיביו (`prisma db seed`) נבדקו בנפרד.

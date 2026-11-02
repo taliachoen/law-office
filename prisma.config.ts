@@ -5,7 +5,7 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
-    seed: "tsx prisma/seed.ts",
+    seed: "tsx prisma/seed/index.ts",
   },
   datasource: {
     // ברירת מחדל כדי ש-prisma generate לא ייכשל כשאין .env
