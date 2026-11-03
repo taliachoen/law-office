@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
@@ -12,6 +13,18 @@ import { createTaskAction, deleteTaskAction, restoreTaskAction, taskCommandActio
 
 type Option = { value: string; label: string };
 export type TaskCaseOption = { id: string; label: string; employees: Option[] };
+
+/** במקום רשימת עובדים ריקה: הסבר וקישור לדף התיק, שם משייכים עובדים. */
+function NoEmployeesNotice({ caseId }: { caseId: string }) {
+  return (
+    <p role="status" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+      אין עובדים משויכים לתיק הזה.{" "}
+      <Link href={`/cases/${caseId}`} className="font-medium underline">
+        לשיוך עובד בדף התיק
+      </Link>
+    </p>
+  );
+}
 
 const PRIORITY_OPTIONS = TASK_PRIORITIES.map((p) => ({ value: p, label: TASK_PRIORITY_LABELS[p] }));
 
@@ -43,11 +56,15 @@ export function TaskFormDialog({ cases, defaultCaseId }: { cases: TaskCaseOption
             <SelectField name="priority" label="עדיפות" required options={PRIORITY_OPTIONS} defaultValue="NORMAL" error={errors.priority} />
             <TextField name="dueDate" label="מועד יעד" type="date" error={errors.dueDate} />
           </div>
-          <SelectField
-            key={caseId}
-            name="assigneeId" label="העברה לעובד" placeholder={caseId ? "ללא (משימה פתוחה)" : "בחרו תיק קודם"}
-            options={employees} disabled={!caseId} error={errors.assigneeId}
-          />
+          {caseId && employees.length === 0 ? (
+            <NoEmployeesNotice caseId={caseId} />
+          ) : (
+            <SelectField
+              key={caseId}
+              name="assigneeId" label="העברה לעובד" placeholder={caseId ? "ללא (משימה פתוחה)" : "בחרו תיק קודם"}
+              options={employees} disabled={!caseId} error={errors.assigneeId}
+            />
+          )}
         </>
       )}
     </FormDialog>
@@ -64,9 +81,10 @@ type CommandTask = { id: string; version: number; title: string };
 
 /** כפתור וחלונית לכל פקודה במכונת המצבים שדורשת קלט (הכול חוץ ממחיקה). */
 export function TaskCommandDialog({
-  task, command, employees,
+  task, command, employees, caseId,
 }: {
   task: CommandTask;
+  caseId: string;
   command: Exclude<TaskCommand, "DELETE">;
   /** חברי התיק שאפשר להעביר אליהם (להעברה ולפתיחה מחדש) */
   employees: Option[];
@@ -92,9 +110,12 @@ export function TaskCommandDialog({
           <input type="hidden" name="command" value={command} />
           <input type="hidden" name="version" value={task.version} />
 
-          {command === "ASSIGN" && (
-            <SelectField name="assigneeId" label="עובד" required placeholder="בחרו עובד" options={employees} error={errors.assigneeId} />
-          )}
+          {command === "ASSIGN" &&
+            (employees.length === 0 ? (
+              <NoEmployeesNotice caseId={caseId} />
+            ) : (
+              <SelectField name="assigneeId" label="עובד" required placeholder="בחרו עובד" options={employees} error={errors.assigneeId} />
+            ))}
           {command === "SUBMIT" && (
             <TextAreaField name="text" label="הערת מענה" required placeholder="מה בוצע, ומה כדאי שהעורכת תבדוק" error={errors.text} />
           )}
@@ -107,7 +128,11 @@ export function TaskCommandDialog({
           {command === "REOPEN" && (
             <>
               <TextAreaField name="text" label="סיבה לפתיחה מחדש" required error={errors.text} />
-              <SelectField name="assigneeId" label="העברה לעובד (אופציונלי)" placeholder="ללא (משימה פתוחה)" options={employees} error={errors.assigneeId} />
+              {employees.length === 0 ? (
+                <NoEmployeesNotice caseId={caseId} />
+              ) : (
+                <SelectField name="assigneeId" label="העברה לעובד (אופציונלי)" placeholder="ללא (משימה פתוחה)" options={employees} error={errors.assigneeId} />
+              )}
             </>
           )}
         </>

@@ -53,7 +53,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
             command === "DELETE" ? (
               <DeleteTaskButton key={command} task={commandTask} />
             ) : (
-              <TaskCommandDialog key={command} task={commandTask} command={command} employees={employees} />
+              <TaskCommandDialog key={command} task={commandTask} command={command} employees={employees} caseId={task.case.id} />
             ),
           )}
         </div>
