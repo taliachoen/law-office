@@ -7,7 +7,7 @@ const manager: SessionUser = { id: "m1", orgId: "org1", name: "מנהלת", role
 const emp: SessionUser = { id: "e1", orgId: "org1", name: "עובד", role: "EMPLOYEE" };
 
 const MANAGER_ONLY = [
-  "client:write", "case:write", "case:assign-members", "task:create", "task:assign", "task:review",
+  "client:write", "case:write", "case:assign-members", "task:create", "task:edit", "task:assign", "task:review",
   "task:delete", "inbox:mark-viewed", "inbox:delete", "document:delete", "deadline:verify",
   "trash:view", "trash:restore", "settings:manage",
 ] as const;

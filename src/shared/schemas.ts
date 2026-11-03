@@ -99,6 +99,13 @@ export const taskInputSchema = z.object({
 });
 export type TaskInput = z.infer<typeof taskInputSchema>;
 
+// עריכת פרטי משימה (בלי סטטוס ובלי עובד: אלה עוברים רק דרך מכונת המצבים).
+export const taskUpdateSchema = taskInputSchema.pick({ title: true, instructions: true, priority: true, dueDate: true }).extend({
+  taskId: idField("משימה לא נבחרה"),
+  version: z.coerce.number({ error: "גרסה לא תקינה" }).int().positive(),
+});
+export type TaskUpdateInput = z.infer<typeof taskUpdateSchema>;
+
 // מעבר במכונת המצבים. חובת הטקסט (הערה/סיכום/סיבה) נאכפת בשירות לפי הפקודה.
 export const taskCommandSchema = z.object({
   taskId: idField("משימה לא נבחרה"),

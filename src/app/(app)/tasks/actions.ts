@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { runAction, type ActionState } from "@/server/actions";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { createTask, restoreTask, runTaskCommand } from "@/server/services/tasks";
-import { formToObject, taskCommandSchema, taskInputSchema } from "@/shared/schemas";
+import { createTask, restoreTask, runTaskCommand, updateTask } from "@/server/services/tasks";
+import { formToObject, taskCommandSchema, taskInputSchema, taskUpdateSchema } from "@/shared/schemas";
 
 function refresh(taskId?: string, caseId?: string) {
   revalidatePath("/tasks");
@@ -20,6 +20,13 @@ export async function createTaskAction(_prev: ActionState, formData: FormData): 
     const created = await createTask(await getCurrentUser(), data);
     refresh(created.id, data.caseId);
     return created;
+  });
+}
+
+export async function updateTaskAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return runAction(taskUpdateSchema, formToObject(formData), async (data) => {
+    await updateTask(await getCurrentUser(), data);
+    refresh(data.taskId);
   });
 }
 

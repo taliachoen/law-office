@@ -7,7 +7,7 @@ import { TASK_EVENT_LABELS, type TaskEventType, type TaskStatus } from "@/shared
 import { formatDateHe, formatDateTimeHe, todayIso } from "@/shared/dates";
 import { availableCommands } from "@/shared/task-flow";
 import { guard } from "../../guard";
-import { DeleteTaskButton, TaskCommandDialog } from "../task-dialogs";
+import { DeleteTaskButton, EditTaskDialog, TaskCommandDialog } from "../task-dialogs";
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -46,8 +46,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      {commands.length > 0 && (
+      {(commands.length > 0 || user.role === "MANAGER") && (
         <div className="flex flex-wrap gap-2" role="group" aria-label="פעולות על המשימה">
+          {user.role === "MANAGER" && <EditTaskDialog task={task} />}
           {commands.map((command) =>
             command === "DELETE" ? (
               <DeleteTaskButton key={command} task={commandTask} />

@@ -12,6 +12,7 @@ export const ACTIONS = [
   "case:write",
   "case:assign-members",
   "task:create",
+  "task:edit",
   "task:assign",
   "task:review", // החזרה לתיקון, סיום, פתיחה מחדש
   "task:delete",
@@ -55,6 +56,7 @@ const MANAGER_ONLY: ReadonlySet<Action> = new Set<Action>([
   "case:write",
   "case:assign-members",
   "task:create",
+  "task:edit",
   "task:assign",
   "task:review",
   "task:delete",

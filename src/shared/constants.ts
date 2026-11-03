@@ -50,6 +50,7 @@ export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
 
 export const TASK_EVENT_TYPES = [
   "CREATED",
+  "UPDATED",
   "ASSIGNED",
   "SUBMITTED_FOR_REVIEW",
   "CHANGES_REQUESTED",
@@ -61,6 +62,7 @@ export const TASK_EVENT_TYPES = [
 export type TaskEventType = (typeof TASK_EVENT_TYPES)[number];
 export const TASK_EVENT_LABELS: Record<TaskEventType, string> = {
   CREATED: "המשימה נוצרה",
+  UPDATED: "המשימה עודכנה",
   ASSIGNED: "הועברה לעובד",
   SUBMITTED_FOR_REVIEW: "הוגשה לבדיקה",
   CHANGES_REQUESTED: "הוחזרה לתיקון",

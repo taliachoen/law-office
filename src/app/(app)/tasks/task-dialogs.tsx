@@ -8,7 +8,7 @@ import { SelectField, TextAreaField, TextField } from "@/components/form-fields"
 import { Button } from "@/components/ui/button";
 import { TASK_PRIORITIES, TASK_PRIORITY_LABELS } from "@/shared/constants";
 import { TASK_COMMAND_LABELS, type TaskCommand } from "@/shared/task-flow";
-import { createTaskAction, deleteTaskAction, restoreTaskAction, taskCommandAction } from "./actions";
+import { createTaskAction, deleteTaskAction, restoreTaskAction, taskCommandAction, updateTaskAction } from "./actions";
 
 type Option = { value: string; label: string };
 export type TaskCaseOption = { id: string; label: string; employees: Option[] };
@@ -110,6 +110,35 @@ export function TaskCommandDialog({
               <SelectField name="assigneeId" label="העברה לעובד (אופציונלי)" placeholder="ללא (משימה פתוחה)" options={employees} error={errors.assigneeId} />
             </>
           )}
+        </>
+      )}
+    </FormDialog>
+  );
+}
+
+export type TaskEditValues = {
+  id: string;
+  version: number;
+  title: string;
+  instructions: string | null;
+  priority: string;
+  dueDate: string | null;
+};
+
+/** עריכת פרטי משימה (מנהלת). הסטטוס והעובד משתנים רק דרך כפתורי הפעולה. */
+export function EditTaskDialog({ task }: { task: TaskEditValues }) {
+  return (
+    <FormDialog triggerLabel="עריכה" triggerVariant="outline" title="עריכת משימה" submitLabel="שמירה" action={updateTaskAction}>
+      {(errors) => (
+        <>
+          <input type="hidden" name="taskId" value={task.id} />
+          <input type="hidden" name="version" value={task.version} />
+          <TextField name="title" label="כותרת" required defaultValue={task.title} error={errors.title} />
+          <TextAreaField name="instructions" label="הוראות" defaultValue={task.instructions ?? ""} error={errors.instructions} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <SelectField name="priority" label="עדיפות" required options={PRIORITY_OPTIONS} defaultValue={task.priority} error={errors.priority} />
+            <TextField name="dueDate" label="מועד יעד" type="date" defaultValue={task.dueDate ?? ""} error={errors.dueDate} />
+          </div>
         </>
       )}
     </FormDialog>

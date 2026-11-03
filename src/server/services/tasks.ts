@@ -6,7 +6,7 @@ import { ConflictError, NotFoundError, ValidationError } from "@/server/errors";
 import { authorize, caseScope, type Action } from "@/server/policy";
 import { TASK_STATUS_LABELS, type TaskStatus } from "@/shared/constants";
 import { todayIso } from "@/shared/dates";
-import type { TaskCommandInput, TaskInput } from "@/shared/schemas";
+import type { TaskCommandInput, TaskInput, TaskUpdateInput } from "@/shared/schemas";
 import { TASK_COMMAND_LABELS, TASK_RULES, canTransition, targetStatus, type TaskCommand } from "@/shared/task-flow";
 
 // שירות המשימות. מכונת המצבים עצמה (מי, מאיזה מצב, לאיזה מצב) מוגדרת ב-shared/task-flow;
@@ -133,6 +133,50 @@ export async function createTask(user: SessionUser, input: TaskInput): Promise<{
       action: "CREATE", summary: `נוצרה משימה: ${created.title}`,
     });
     return { id: created.id };
+  });
+}
+
+// ---- עריכת פרטים ----
+
+const EDIT_LABELS = { title: "כותרת", instructions: "הוראות", priority: "עדיפות", dueDate: "מועד יעד" } as const;
+
+/**
+ * עריכת כותרת, הוראות, עדיפות ומועד יעד (מנהלת בלבד). לא נוגעת בסטטוס ובעובד: אלה עוברים
+ * רק דרך מכונת המצבים. אם לא השתנה דבר, לא נכתב כלום (גם לא גרסה או אירוע).
+ */
+export async function updateTask(user: SessionUser, input: TaskUpdateInput): Promise<void> {
+  authorize(user, "task:edit", { orgId: user.orgId });
+  await db.$transaction(async (tx) => {
+    const task = await tx.task.findFirst({ where: { id: input.taskId, orgId: user.orgId, deletedAt: null } });
+    if (!task) throw new NotFoundError("המשימה לא נמצאה");
+    if (input.version !== task.version) throw new ConflictError(STALE_MESSAGE);
+
+    // ערך ריק מנקה את השדה (null)
+    const next = {
+      title: input.title,
+      instructions: input.instructions ?? null,
+      priority: input.priority,
+      dueDate: input.dueDate ?? null,
+    };
+    const changed = (Object.keys(EDIT_LABELS) as (keyof typeof EDIT_LABELS)[])
+      .filter((k) => (task[k] ?? null) !== next[k])
+      .map((k) => EDIT_LABELS[k]);
+    if (changed.length === 0) return;
+
+    const result = await tx.task.updateMany({
+      where: { id: task.id, orgId: user.orgId, version: task.version, deletedAt: null },
+      data: { ...next, version: { increment: 1 } },
+    });
+    if (result.count === 0) throw new ConflictError(STALE_MESSAGE);
+
+    const list = changed.join(", ");
+    await tx.taskEvent.create({
+      data: { orgId: user.orgId, taskId: task.id, actorId: user.id, type: "UPDATED", note: `עודכנו: ${list}` },
+    });
+    await writeAudit(tx, {
+      orgId: user.orgId, actorId: user.id, entityType: "Task", entityId: task.id, caseId: task.caseId,
+      action: "UPDATE", summary: `עודכנו פרטי המשימה (${list}): ${next.title}`,
+    });
   });
 }
 

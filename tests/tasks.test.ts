@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/server/db";
 import type { SessionUser } from "@/server/auth/session-user";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/server/errors";
-import { createTask, getTaskDetail, listDeletedTasks, listTasks, restoreTask, runTaskCommand } from "@/server/services/tasks";
+import { createTask, getTaskDetail, listDeletedTasks, listTasks, restoreTask, runTaskCommand, updateTask } from "@/server/services/tasks";
 import { TASK_STATUSES, type TaskStatus } from "@/shared/constants";
 import { addDays, todayIso } from "@/shared/dates";
 import { TASK_COMMANDS, availableCommands, canTransition, type TaskCommand } from "@/shared/task-flow";
@@ -297,5 +297,74 @@ describe("createTask", () => {
     await expect(createTask(manager, { ...base(), caseId: closedCaseId })).rejects.toThrow("תיק סגור");
     await expect(createTask(manager, { ...base(), assigneeId: empB.id })).rejects.toThrow(ValidationError);
     await expect(createTask(manager, { ...base(), caseId: "nope" })).rejects.toThrow(ValidationError);
+  });
+});
+
+describe('updateTask – עריכת פרטים', () => {
+  const edit = async (user: SessionUser, id: string, over: Record<string, unknown> = {}) => {
+    const { version } = await current(id);
+    return updateTask(user, { taskId: id, version, title: 'כותרת חדשה', priority: 'HIGH', instructions: 'הוראות חדשות', dueDate: '2026-12-01', ...over } as Parameters<typeof updateTask>[1]);
+  };
+
+  it('מעדכנת פרטים בלבד: סטטוס ועובד נשארים, הגרסה עולה, ונכתבים TaskEvent ו-Audit', async () => {
+    const t = await mkTask('IN_REVIEW');
+    const before = await counts(t.id);
+    await edit(manager, t.id);
+    const after = await current(t.id);
+    expect(after).toMatchObject({ title: 'כותרת חדשה', priority: 'HIGH', instructions: 'הוראות חדשות', dueDate: '2026-12-01', status: 'IN_REVIEW', assigneeId: empA.id, version: 2 });
+    expect(await counts(t.id)).toEqual({ events: before.events + 1, audit: before.audit + 1 });
+    const ev = await db.taskEvent.findFirstOrThrow({ where: { taskId: t.id, type: 'UPDATED' } });
+    expect(ev).toMatchObject({ actorId: manager.id });
+    expect(ev.note).toContain('כותרת');
+    const audit = await db.auditEvent.findFirstOrThrow({ where: { entityId: t.id, action: 'UPDATE' } });
+    expect(audit.caseId).toBe(caseId);
+  });
+
+  it('מותרת בכל מצב, גם על משימה שהושלמה', async () => {
+    for (const status of TASK_STATUSES) {
+      const t = await mkTask(status);
+      await edit(manager, t.id);
+      expect((await current(t.id)).status).toBe(status);
+    }
+  });
+
+  it('שדה ריק מנקה הוראות ומועד יעד', async () => {
+    const t = await mkTask('OPEN', { dueDate: '2026-11-30' });
+    await edit(manager, t.id, { instructions: undefined, dueDate: undefined });
+    expect(await current(t.id)).toMatchObject({ instructions: null, dueDate: null });
+  });
+
+  it('בלי שינוי בפועל: לא עולה גרסה ולא נכתב אירוע', async () => {
+    const t = await mkTask('OPEN');
+    await edit(manager, t.id, { title: t.title, priority: t.priority, instructions: undefined, dueDate: undefined });
+    expect((await current(t.id)).version).toBe(1);
+    expect((await counts(t.id))).toEqual({ events: 0, audit: 0 });
+  });
+
+  it('גרסה ישנה נדחית בהודעה הנדרשת ולא משנה דבר', async () => {
+    const t = await mkTask('ASSIGNED');
+    await edit(manager, t.id); // גרסה 2
+    const before = await counts(t.id);
+    await expect(updateTask(manager, { taskId: t.id, version: 1, title: 'ישן', priority: 'LOW' })).rejects.toThrow(
+      new ConflictError('המשימה עודכנה בחלון אחר. רעננו את הדף.'),
+    );
+    expect((await current(t.id)).title).toBe('כותרת חדשה');
+    expect(await counts(t.id)).toEqual(before);
+  });
+
+  it('עובד (גם המוקצה, גם חבר בתיק) ועובד מחוץ לתיק נדחים', async () => {
+    const t = await mkTask('ASSIGNED');
+    const before = await counts(t.id);
+    await expect(edit(empA, t.id)).rejects.toThrow(ForbiddenError);
+    await expect(edit(empB, t.id)).rejects.toThrow(ForbiddenError);
+    expect((await current(t.id)).version).toBe(1);
+    expect(await counts(t.id)).toEqual(before);
+  });
+
+  it('משימה שנמחקה (בסל) או שלא קיימת: NotFound', async () => {
+    const t = await mkTask('OPEN');
+    await run(manager, t.id, 'DELETE');
+    await expect(updateTask(manager, { taskId: t.id, version: 2, title: 'שם', priority: 'LOW' })).rejects.toThrow(NotFoundError);
+    await expect(updateTask(manager, { taskId: 'nope', version: 1, title: 'שם', priority: 'LOW' })).rejects.toThrow(NotFoundError);
   });
 });
