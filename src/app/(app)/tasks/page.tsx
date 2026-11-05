@@ -101,6 +101,7 @@ export default async function TasksPage({
         tab={tab}
         filters={filters}
         people={(team ?? []).map((p) => ({ value: p.id, label: p.name }))}
+        allLabel={user.role === "EMPLOYEE" ? "כולם (בתיקים שלי)" : "כולם"}
         cases={cases.map((c) => ({ value: c.id, label: `${c.internalNumber} · ${c.title}` }))}
       />
 

@@ -10,18 +10,20 @@ type Option = { value: string; label: string };
  * סרגל סינון המשימות (סעיף 6.4 במפרט). טופס GET רגיל: הסינון נשמר בכתובת, ולכן אפשר לשמור קישור.
  * "אצל מי" מציע לכל אחד "כולם" ו"אני"; מנהלת מקבלת גם את כל הצוות (השרת אוכף זאת בכל מקרה).
  */
-export function TaskFilterBar({ tab, filters, people, cases }: {
+export function TaskFilterBar({ tab, filters, people, cases, allLabel = "כולם" }: {
   tab: string;
   filters: TaskFilterParams;
   people: Option[];
   cases: Option[];
+  /** תווית "כולם" בבחירת אצל מי */
+  allLabel?: string;
 }) {
   const active = activeFilterCount(filters) > 0;
   const holderOptions = [{ value: "me", label: "אני" }, ...people];
   return (
     <form method="get" action="/tasks" aria-label="סינון משימות" className="grid gap-3 rounded-lg border border-gray-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-4">
       {tab !== "open" && <input type="hidden" name="tab" value={tab} />}
-      <SelectField name="holder" label="אצל מי" placeholder="כולם" options={holderOptions} defaultValue={filters.holder ?? ""} />
+      <SelectField name="holder" label="אצל מי" placeholder={allLabel} options={holderOptions} defaultValue={filters.holder ?? ""} />
       <SelectField name="caseId" label="תיק" placeholder="כל התיקים" options={cases} defaultValue={filters.caseId ?? ""} />
       <SelectField
         name="status" label="סטטוס" placeholder="הכול" defaultValue={filters.status ?? ""}
