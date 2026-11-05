@@ -14,7 +14,7 @@ export default async function DashboardPage() {
     { label: "תיקים פעילים", value: counts.activeCases, href: "/cases?status=ACTIVE" },
     { label: "משימות פתוחות", value: counts.openTasks, href: "/tasks" },
     { label: "משימות באיחור", value: counts.overdueTasks, warn: counts.overdueTasks > 0, href: "/tasks?overdue=1" },
-    { label: counts.reviewCard.label, value: counts.reviewCard.count, href: user.role === "MANAGER" ? "/tasks?tab=review" : "/tasks?tab=mine&status=CHANGES_REQUESTED" },
+    { label: counts.reviewCard.label, value: counts.reviewCard.count, href: user.role === "EMPLOYEE" ? "/tasks?tab=mine&status=CHANGES_REQUESTED" : "/tasks?tab=review" },
     { label: "חומר חדש שלא נצפה", value: counts.unseenInbox },
     { label: "מועדים ב-7 הימים הקרובים", value: counts.upcomingDeadlines },
   ];

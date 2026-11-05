@@ -5,6 +5,7 @@ import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
 import { SelectField, TextAreaField, TextField } from "@/components/form-fields";
 import { FormDialog } from "@/components/form-dialog";
 import { CLIENT_TYPE_LABELS, CLIENT_TYPES } from "@/shared/constants";
+import type { Option } from "../cases/case-dialogs";
 import { addContactAction, deleteClientAction, removeContactAction, saveClientAction } from "./actions";
 
 const TYPE_OPTIONS = CLIENT_TYPES.map((t) => ({ value: t, label: CLIENT_TYPE_LABELS[t] }));
@@ -18,10 +19,11 @@ export type ClientFormValues = {
   email: string | null;
   address: string | null;
   notes: string | null;
+  contactStatus: string;
 };
 
 /** יצירת לקוח (בלי client) או עריכה (עם client). מנהלת בלבד; גם השרת אוכף זאת. */
-export function ClientFormDialog({ client }: { client?: ClientFormValues }) {
+export function ClientFormDialog({ client, contactStatuses }: { client?: ClientFormValues; contactStatuses: Option[] }) {
   const router = useRouter();
   return (
     <FormDialog
@@ -39,6 +41,7 @@ export function ClientFormDialog({ client }: { client?: ClientFormValues }) {
           {client && <input type="hidden" name="id" value={client.id} />}
           <SelectField name="type" label="סוג לקוח" required options={TYPE_OPTIONS} defaultValue={client?.type ?? "PERSON"} error={errors.type} />
           <TextField name="fullName" label="שם מלא" required defaultValue={client?.fullName} error={errors.fullName} />
+          <SelectField name="contactStatus" label="סטטוס קשר" options={contactStatuses} defaultValue={client?.contactStatus ?? "ACTIVE"} error={errors.contactStatus} />
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField name="idNumber" label="ת״ז / ח״פ" inputMode="numeric" defaultValue={client?.idNumber ?? ""} error={errors.idNumber} />
             <TextField name="phone" label="טלפון" type="tel" defaultValue={client?.phone ?? ""} error={errors.phone} />

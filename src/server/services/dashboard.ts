@@ -41,9 +41,9 @@ export async function getDashboardCounts(user: SessionUser) {
     overdueTasks,
     // למנהלת: מה מחכה לבדיקה. לעובד: מה הוחזר אליו לתיקון (סעיף 6.1 במפרט)
     reviewCard:
-      user.role === "MANAGER"
-        ? { label: "ממתינות לבדיקה", count: waitingReview }
-        : { label: "הוחזרו אליי לתיקון", count: returnedToMe },
+      user.role === "EMPLOYEE"
+        ? { label: "הוחזרו אליי לתיקון", count: returnedToMe }
+        : { label: "ממתינות לבדיקה", count: waitingReview },
     unseenInbox,
     upcomingDeadlines,
   };

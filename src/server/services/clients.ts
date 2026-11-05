@@ -3,16 +3,18 @@ import { db } from "@/server/db";
 import { writeAudit } from "@/server/audit";
 import type { SessionUser } from "@/server/auth/session-user";
 import { NotFoundError, ValidationError } from "@/server/errors";
-import { authorize, caseScope, clientScope } from "@/server/policy";
+import { authorize, caseScope, clientScope, seesWholeOffice } from "@/server/policy";
+import { assertValidOption } from "@/server/services/lookups";
 import type { ClientInput, ContactInput } from "@/shared/schemas";
 
 // שירות הלקוחות. כל פעולה בודקת הרשאה, וכל שינוי כותב AuditEvent באותה טרנזקציה.
 
-export async function listClients(user: SessionUser, filters: { q?: string; type?: string } = {}) {
+export async function listClients(user: SessionUser, filters: { q?: string; type?: string; contactStatus?: string } = {}) {
   const q = filters.q?.trim();
   const where: Prisma.ClientWhereInput = {
     ...clientScope(user),
     ...(filters.type ? { type: filters.type } : {}),
+    ...(filters.contactStatus ? { contactStatus: filters.contactStatus } : {}),
     ...(q ? { OR: [{ fullName: { contains: q } }, { idNumber: { contains: q } }, { phone: { contains: q } }] } : {}),
   };
   return db.client.findMany({
@@ -41,16 +43,19 @@ export async function getClientDetail(user: SessionUser, id: string) {
     memberUserIds: cases.flatMap((c) => c.members.map((m) => m.userId)),
   });
 
-  const visibleCases = user.role === "MANAGER" ? cases : cases.filter((c) => c.members.some((m) => m.userId === user.id));
+  const visibleCases = seesWholeOffice(user) ? cases : cases.filter((c) => c.members.some((m) => m.userId === user.id));
   return { client, cases: visibleCases };
 }
 
 export async function createClient(user: SessionUser, input: ClientInput): Promise<{ id: string }> {
   authorize(user, "client:write", { orgId: user.orgId });
   return db.$transaction(async (tx) => {
+    const contactStatus = input.contactStatus ?? "ACTIVE";
+    await assertValidOption(tx, user.orgId, "CONTACT_STATUS", contactStatus);
     const created = await tx.client.create({
       data: {
         orgId: user.orgId,
+        contactStatus,
         type: input.type,
         fullName: input.fullName,
         idNumber: input.idNumber ?? null,
@@ -73,9 +78,13 @@ export async function updateClient(user: SessionUser, id: string, input: ClientI
   await db.$transaction(async (tx) => {
     const existing = await tx.client.findFirst({ where: { id, orgId: user.orgId, deletedAt: null } });
     if (!existing) throw new NotFoundError("הלקוח לא נמצא");
+    // ערך שכובה ברשימה לא חוסם עריכת שדות אחרים: בודקים רק ערך ששונה
+    const contactStatus = input.contactStatus ?? existing.contactStatus;
+    if (contactStatus !== existing.contactStatus) await assertValidOption(tx, user.orgId, "CONTACT_STATUS", contactStatus);
     await tx.client.update({
       where: { id },
       data: {
+        contactStatus,
         type: input.type,
         fullName: input.fullName,
         // ערך ריק מנקה את השדה (null), ולא משאיר את הישן
@@ -95,7 +104,7 @@ export async function updateClient(user: SessionUser, id: string, input: ClientI
 
 /** מחיקה רכה (סל מחזור). אסורה ללקוח שיש לו תיקים שאינם סגורים. */
 export async function deleteClient(user: SessionUser, id: string): Promise<void> {
-  authorize(user, "client:write", { orgId: user.orgId });
+  authorize(user, "client:write-delete", { orgId: user.orgId });
   await db.$transaction(async (tx) => {
     const existing = await tx.client.findFirst({ where: { id, orgId: user.orgId, deletedAt: null } });
     if (!existing) throw new NotFoundError("הלקוח לא נמצא");

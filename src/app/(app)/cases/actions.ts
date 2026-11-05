@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { runAction, type ActionState } from "@/server/actions";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { createCase, setCaseMembers, updateCase } from "@/server/services/cases";
-import { caseInputSchema, caseMembersSchema, caseUpdateSchema, formToObject } from "@/shared/schemas";
+import { createCase, setCaseBlockers, setCaseMembers, updateCase } from "@/server/services/cases";
+import { caseBlockersSchema, caseInputSchema, caseMembersSchema, caseUpdateSchema, formToObject } from "@/shared/schemas";
 
 function refresh(caseId?: string, clientId?: string) {
   revalidatePath("/cases");
@@ -42,4 +42,12 @@ export async function setMembersAction(_prev: ActionState, formData: FormData): 
       refresh(data.caseId);
     },
   );
+}
+
+/** חסמים בתיק: מנהלת בלבד (השרת אוכף), עם נעילה אופטימית. */
+export async function saveBlockersAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return runAction(caseBlockersSchema, formToObject(formData), async (data) => {
+    await setCaseBlockers(await getCurrentUser(), data);
+    refresh(data.caseId);
+  });
 }

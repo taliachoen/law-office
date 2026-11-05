@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CASE_STATUSES, CLIENT_TYPES, TASK_PRIORITIES } from "./constants";
+import { CASE_NOTE_KINDS, CASE_STATUSES, CLIENT_TYPES, TASK_PRIORITIES } from "./constants";
 import { TASK_COMMANDS } from "./task-flow";
 
 // סכמות zod משותפות. בכל Server Action הקלט מאומת כאן, בשרת, לפני שמגיעים לשירות.
@@ -37,6 +37,8 @@ export const clientInputSchema = z.object({
   email: blankable(z.email("כתובת מייל לא תקינה")),
   address: blankable(z.string().trim().max(200, "עד 200 תווים")),
   notes: blankable(z.string().trim().max(2000, "עד 2000 תווים")),
+  /** קוד מהרשימה CONTACT_STATUS; נבדק בשירות מול הרשימה. חסר = ACTIVE ביצירה, ללא שינוי בעדכון */
+  contactStatus: blankable(z.string().min(1)),
 });
 export type ClientInput = z.infer<typeof clientInputSchema>;
 
@@ -115,3 +117,30 @@ export const taskCommandSchema = z.object({
   assigneeId: blankable(z.string().min(1)),
 });
 export type TaskCommandInput = z.infer<typeof taskCommandSchema>;
+
+// ---- חסמים בתיק ----
+
+export const caseBlockersSchema = z.object({
+  caseId: idField("תיק לא נבחר"),
+  version: z.coerce.number({ error: "גרסה לא תקינה" }).int().positive(),
+  blockers: blankable(z.string().trim().max(1000, "עד 1000 תווים")),
+});
+export type CaseBlockersInput = z.infer<typeof caseBlockersSchema>;
+
+// ---- תיעוד בתיק ----
+
+export const noteInputSchema = z.object({
+  caseId: idField("תיק לא נבחר"),
+  kind: z.enum(CASE_NOTE_KINDS, { error: "יש לבחור סוג תיעוד" }),
+  // ערך של שדה datetime-local, בשעון ישראל. ריק = עכשיו
+  occurredAt: blankable(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "תאריך ושעה לא תקינים")),
+  participants: blankable(z.string().trim().max(200, "עד 200 תווים")),
+  body: z.string({ error: "יש להזין תוכן" }).trim().min(1, "יש להזין תוכן").max(8000, "עד 8000 תווים"),
+});
+export type NoteInput = z.infer<typeof noteInputSchema>;
+
+export const noteUpdateSchema = noteInputSchema.omit({ caseId: true }).extend({
+  noteId: idField("תיעוד לא נבחר"),
+  version: z.coerce.number({ error: "גרסה לא תקינה" }).int().positive(),
+});
+export type NoteUpdateInput = z.infer<typeof noteUpdateSchema>;

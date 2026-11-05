@@ -11,6 +11,8 @@ export type TaskListRow = {
   dueDate: string | null;
   case: { id: string; title: string; internalNumber: string };
   assignee: { name: string } | null;
+  /** אצל מי עכשיו (נגזר מהמצב), לא בהכרח העובד המוקצה */
+  holderName?: string | null;
 };
 
 function Due({ task, today }: { task: TaskListRow; today: string }) {
@@ -39,7 +41,7 @@ export function TaskList({ tasks, emptyText, showCase = true }: { tasks: TaskLis
               <TableHead>משימה</TableHead>
               {showCase && <TableHead>תיק</TableHead>}
               <TableHead>סטטוס</TableHead>
-              <TableHead>עובד</TableHead>
+              <TableHead>אצל מי עכשיו</TableHead>
               <TableHead>מועד יעד</TableHead>
             </TableRow>
           </TableHeader>
@@ -56,7 +58,7 @@ export function TaskList({ tasks, emptyText, showCase = true }: { tasks: TaskLis
                   </TableCell>
                 )}
                 <TableCell><TaskStatusBadge status={t.status} /></TableCell>
-                <TableCell>{t.assignee?.name ?? "—"}</TableCell>
+                <TableCell>{t.holderName ?? "—"}</TableCell>
                 <TableCell><Due task={t} today={today} /></TableCell>
               </TableRow>
             ))}
@@ -74,7 +76,7 @@ export function TaskList({ tasks, emptyText, showCase = true }: { tasks: TaskLis
               </div>
               <div className="mt-1 text-sm text-gray-600">
                 {showCase && <>{t.case.title} · </>}
-                {t.assignee?.name ?? "לא הועברה"} · <Due task={t} today={today} />
+                {t.holderName ?? "אף אחד"} · <Due task={t} today={today} />
               </div>
             </Link>
           </li>

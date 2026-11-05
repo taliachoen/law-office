@@ -38,7 +38,7 @@ export function TaskFormDialog({ cases, defaultCaseId }: { cases: TaskCaseOption
     <FormDialog
       triggerLabel="משימה חדשה"
       title="משימה חדשה"
-      description="אפשר להעביר לעובד מיד, או להשאיר פתוחה ולהעביר מאוחר יותר."
+      description="אפשר להעביר לעובד מיד, או להשאיר אצלך ולהעביר מאוחר יותר."
       submitLabel="יצירת משימה"
       action={createTaskAction}
       onSuccess={(result) => result.id && router.push(`/tasks/${result.id}`)}
@@ -61,7 +61,7 @@ export function TaskFormDialog({ cases, defaultCaseId }: { cases: TaskCaseOption
           ) : (
             <SelectField
               key={caseId}
-              name="assigneeId" label="העברה לעובד" placeholder={caseId ? "ללא (משימה פתוחה)" : "בחרו תיק קודם"}
+              name="assigneeId" label="העברה לעובד" placeholder={caseId ? "אצלי (משימה פתוחה)" : "בחרו תיק קודם"}
               options={employees} disabled={!caseId} error={errors.assigneeId}
             />
           )}

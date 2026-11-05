@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { CaseStatusBadge, ClientTypeBadge } from "@/components/badges";
+import { CaseStatusBadge, ClientTypeBadge, ContactStatusBadge } from "@/components/badges";
 import { Forbidden } from "@/components/forbidden";
 import { getCurrentUser } from "@/server/auth/current-user";
+import { can } from "@/server/policy";
 import { getClientDetail } from "@/server/services/clients";
-import { getLabelMap } from "@/server/services/lookups";
+import { getActiveOptions, getLabelMap } from "@/server/services/lookups";
 import { guard } from "../../guard";
 import { CaseFormDialog } from "../../cases/case-dialogs";
 import { loadCaseFormOptions } from "../../cases/form-options";
@@ -26,9 +27,20 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
 
   const { client, cases } = result.data;
   const isManager = user.role === "MANAGER";
-  const caseTypeLabel = await getLabelMap(user, "CASE_TYPE");
-  // אפשרויות הטופס נטענות רק למנהלת (שירות המשתמשים בודק הרשאה)
-  const options = isManager ? await loadCaseFormOptions(user) : null;
+  // עריכה ויצירה: מנהלת ומזכירות. מחיקה: מנהלת בלבד. גם השרת אוכף זאת.
+  const canWrite = can(user, "client:write", { orgId: user.orgId });
+  const [caseTypeLabel, statusLabel, statusActive] = await Promise.all([
+    getLabelMap(user, "CASE_TYPE"),
+    getLabelMap(user, "CONTACT_STATUS"),
+    getActiveOptions(user, "CONTACT_STATUS"),
+  ]);
+  // סטטוס נוכחי שכובה ברשימה נשאר זמין בטופס, כדי שפתיחתו לא תשנה אותו בשקט
+  const statusSelect = statusActive.map((o) => ({ value: o.code, label: o.label }));
+  if (!statusSelect.some((o) => o.value === client.contactStatus)) {
+    statusSelect.push({ value: client.contactStatus, label: `${statusLabel(client.contactStatus)} (לא פעיל)` });
+  }
+  // אפשרויות הטופס נטענות רק למי שרשאי (שירות המשתמשים בודק הרשאה)
+  const options = canWrite ? await loadCaseFormOptions(user) : null;
 
   return (
     <div className="space-y-6">
@@ -38,11 +50,12 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-navy-900">{client.fullName}</h1>
             <ClientTypeBadge type={client.type} />
+            <ContactStatusBadge code={client.contactStatus} label={statusLabel(client.contactStatus)} />
           </div>
-          {isManager && (
+          {canWrite && (
             <div className="flex flex-wrap gap-2">
-              <ClientFormDialog client={client} />
-              <DeleteClientButton id={client.id} name={client.fullName} />
+              <ClientFormDialog client={client} contactStatuses={statusSelect} />
+              {isManager && <DeleteClientButton id={client.id} name={client.fullName} />}
             </div>
           )}
         </div>
@@ -65,7 +78,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       <section aria-labelledby="contacts" className="rounded-lg border border-gray-200 bg-white p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 id="contacts" className="font-semibold">אנשי קשר</h2>
-          {isManager && <AddContactDialog clientId={client.id} />}
+          {canWrite && <AddContactDialog clientId={client.id} />}
         </div>
         {client.contacts.length === 0 ? (
           <p className="text-sm text-gray-600">אין אנשי קשר</p>
@@ -78,7 +91,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                   <span className="text-gray-600"> · {c.relation}</span>
                   <div className="text-sm text-gray-600">{[c.phone, c.email].filter(Boolean).join(" · ")}</div>
                 </div>
-                {isManager && <RemoveContactButton contactId={c.id} clientId={client.id} name={c.name} />}
+                {canWrite && <RemoveContactButton contactId={c.id} clientId={client.id} name={c.name} />}
               </li>
             ))}
           </ul>

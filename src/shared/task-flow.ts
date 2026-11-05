@@ -57,3 +57,25 @@ export function availableCommands(status: TaskStatus, actor: { isManager: boolea
     return TASK_RULES[command].managerOnly ? actor.isManager : actor.isAssignee;
   });
 }
+
+/**
+ * "אצל מי עכשיו" (סעיף 6.4 במפרט): מי מחזיק במשימה לפי מצבה.
+ * ASSIGNED / CHANGES_REQUESTED: העובד המוקצה. IN_REVIEW: המנהלת (בדגם יש אחת).
+ * OPEN: מי שהוקצתה לו, ואם אין, מי שיצר אותה. COMPLETED: אף אחד.
+ */
+export function taskHolderId(
+  task: { status: TaskStatus; assigneeId: string | null; createdById: string },
+  managerId: string | null,
+): string | null {
+  switch (task.status) {
+    case "ASSIGNED":
+    case "CHANGES_REQUESTED":
+      return task.assigneeId;
+    case "IN_REVIEW":
+      return managerId;
+    case "OPEN":
+      return task.assigneeId ?? task.createdById;
+    case "COMPLETED":
+      return null;
+  }
+}

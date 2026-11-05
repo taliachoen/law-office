@@ -3,15 +3,19 @@ import { CaseStatusBadge } from "@/components/badges";
 import { TaskList } from "@/components/task-list";
 import { Forbidden } from "@/components/forbidden";
 import { getCurrentUser } from "@/server/auth/current-user";
+import { can } from "@/server/policy";
 import { getCaseDetail, getCaseHistory } from "@/server/services/cases";
+import { latestNotes, listNotes } from "@/server/services/case-notes";
 import { getLabelMap } from "@/server/services/lookups";
 import { getTaskFormOptions, listTasks } from "@/server/services/tasks";
-import { DEADLINE_TYPE_LABELS, TASK_PRIORITY_LABELS, TASK_STATUS_LABELS, type DeadlineType, type TaskPriority, type TaskStatus } from "@/shared/constants";
+import { CASE_NOTE_KINDS, CASE_NOTE_KIND_LABELS, DEADLINE_TYPE_LABELS, TASK_PRIORITY_LABELS, TASK_STATUS_LABELS, type DeadlineType, type TaskPriority, type TaskStatus } from "@/shared/constants";
 import { formatDateHe, formatDateTimeHe } from "@/shared/dates";
 import { guard } from "../../guard";
 import { TaskFormDialog } from "../../tasks/task-dialogs";
-import { CaseFormDialog, MembersDialog } from "../case-dialogs";
+import { BlockersDialog, CaseFormDialog, MembersDialog } from "../case-dialogs";
 import { loadCaseFormOptions } from "../form-options";
+import { NoteFormDialog } from "./note-dialogs";
+import { NotesList } from "./notes-panel";
 
 function Fact({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -26,6 +30,7 @@ function Fact({ label, value }: { label: string; value: React.ReactNode }) {
 const TABS = [
   { key: "overview", label: "סקירה" },
   { key: "tasks", label: "משימות" },
+  { key: "notes", label: "תיעוד" },
   { key: "history", label: "היסטוריה" },
 ] as const;
 
@@ -33,13 +38,15 @@ export default async function CasePage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; kind?: string }>;
 }) {
   const { id } = await params;
-  const { tab } = await searchParams;
-  const activeTab = tab === "history" || tab === "tasks" ? tab : "overview";
+  const { tab, kind } = await searchParams;
+  const activeTab = tab === "history" || tab === "tasks" || tab === "notes" ? tab : "overview";
   const user = await getCurrentUser();
   const isManager = user.role === "MANAGER";
+  // עריכת פרטי תיק: מנהלת ומזכירות. חסמים ושיוך עובדים: מנהלת בלבד.
+  const canWrite = can(user, "case:write", { orgId: user.orgId });
 
   const result = await guard(() => getCaseDetail(user, id));
   if (result.forbidden) return <Forbidden backHref="/cases" backLabel="חזרה לתיקים" />;
@@ -48,9 +55,11 @@ export default async function CasePage({
   const [typeLabel, courtLabel, options] = await Promise.all([
     getLabelMap(user, "CASE_TYPE"),
     getLabelMap(user, "COURT"),
-    isManager ? loadCaseFormOptions(user, { caseType: c.caseType, court: c.court }) : null,
+    canWrite ? loadCaseFormOptions(user, { caseType: c.caseType, court: c.court }) : null,
   ]);
   const history = activeTab === "history" ? await getCaseHistory(user, id) : [];
+  const notes = activeTab === "notes" ? await listNotes(user, id, { kind }) : [];
+  const recentNotes = activeTab === "overview" ? await latestNotes(user, id) : [];
   const caseTasks = activeTab === "tasks" ? await listTasks(user, { caseId: id }) : [];
   // טופס משימה חדשה בתוך התיק: רק התיק הנוכחי, ורק אם הוא לא סגור
   const taskFormCases = activeTab === "tasks" && isManager ? (await getTaskFormOptions(user)).filter((o) => o.id === id) : [];
@@ -95,6 +104,19 @@ export default async function CasePage({
 
       {activeTab === "overview" ? (
         <div className="grid gap-6 lg:grid-cols-2">
+          <section
+            aria-labelledby="blockers"
+            className={`lg:col-span-2 rounded-lg border p-4 ${c.blockers ? "border-amber-400 bg-amber-50" : "border-gray-200 bg-white"}`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h2 id="blockers" className="font-semibold">{c.blockers ? "חסם בתיק" : "חסמים"}</h2>
+              {isManager && <BlockersDialog caseId={c.id} version={c.version} blockers={c.blockers} />}
+            </div>
+            <p className={`mt-1 whitespace-pre-line ${c.blockers ? "font-medium text-amber-950" : "text-sm text-gray-600"}`}>
+              {c.blockers || "אין חסמים בתיק"}
+            </p>
+          </section>
+
           <section aria-labelledby="summary" className="rounded-lg border border-gray-200 bg-white p-4">
             <h2 id="summary" className="mb-2 font-semibold">סיכום מצב</h2>
             <p className="whitespace-pre-line">{c.summary || "—"}</p>
@@ -105,7 +127,7 @@ export default async function CasePage({
           <section aria-labelledby="members" className="rounded-lg border border-gray-200 bg-white p-4">
             <div className="mb-2 flex items-center justify-between gap-2">
               <h2 id="members" className="font-semibold">עובדים משויכים</h2>
-              {options && (
+              {isManager && options && (
                 <MembersDialog
                   caseId={c.id}
                   employees={options.employees}
@@ -157,7 +179,35 @@ export default async function CasePage({
               </ul>
             )}
           </section>
+
+          <section aria-labelledby="recent-notes" className="lg:col-span-2 rounded-lg border border-gray-200 bg-white p-4">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 id="recent-notes" className="font-semibold">תיעוד אחרון</h2>
+              <Link href={`/cases/${id}?tab=notes`} className="text-sm text-navy-700 hover:underline">לכל התיעוד</Link>
+            </div>
+            <NotesList caseId={id} notes={recentNotes} compact emptyText="אין עדיין תיעוד בתיק" />
+          </section>
         </div>
+      ) : activeTab === "notes" ? (
+        <section aria-labelledby="case-notes" className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 id="case-notes" className="font-semibold">תיעוד: שיחות, פגישות והערות</h2>
+            <NoteFormDialog caseId={id} />
+          </div>
+          <nav aria-label="סינון לפי סוג תיעוד" className="flex flex-wrap gap-2 text-sm">
+            {[{ key: "", label: "הכול" }, ...CASE_NOTE_KINDS.map((k) => ({ key: k, label: CASE_NOTE_KIND_LABELS[k] }))].map((f) => (
+              <Link
+                key={f.key}
+                href={f.key ? `/cases/${id}?tab=notes&kind=${f.key}` : `/cases/${id}?tab=notes`}
+                aria-current={(kind ?? "") === f.key ? "page" : undefined}
+                className={`rounded-full border px-3 py-1 ${(kind ?? "") === f.key ? "border-navy-700 bg-navy-50 font-semibold text-navy-800" : "border-gray-300 text-gray-700 hover:border-navy-700"}`}
+              >
+                {f.label}
+              </Link>
+            ))}
+          </nav>
+          <NotesList caseId={id} notes={notes} emptyText={kind ? "אין תיעוד מהסוג הזה" : "אין עדיין תיעוד בתיק"} />
+        </section>
       ) : activeTab === "tasks" ? (
         <section aria-labelledby="case-tasks" className="space-y-3">
           <div className="flex items-center justify-between gap-2">

@@ -17,6 +17,19 @@ export function CaseStatusBadge({ status }: { status: string }) {
   );
 }
 
+// צבע תמיד מלווה בטקסט. הרשימה ניתנת להגדרה, ולכן קוד לא מוכר מקבל מסגרת בלבד.
+const CONTACT_STATUS_STYLE: Record<string, string> = {
+  ACTIVE: "bg-navy-100 text-navy-800",
+  AWAITING_CLIENT: "bg-amber-100 text-amber-900",
+  UNAVAILABLE: "bg-orange-100 text-orange-900",
+  TREATMENT_ENDED: "bg-gray-200 text-gray-700",
+};
+
+export function ContactStatusBadge({ code, label }: { code: string; label: string }) {
+  const style = CONTACT_STATUS_STYLE[code];
+  return style ? <Badge variant="secondary" className={style}>{label}</Badge> : <Badge variant="outline">{label}</Badge>;
+}
+
 export function ClientTypeBadge({ type }: { type: string }) {
   return <Badge variant="outline">{type in CLIENT_TYPE_LABELS ? CLIENT_TYPE_LABELS[type as ClientType] : type}</Badge>;
 }

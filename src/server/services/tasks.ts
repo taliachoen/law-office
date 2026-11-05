@@ -5,9 +5,10 @@ import type { SessionUser } from "@/server/auth/session-user";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/errors";
 import { authorize, caseScope, type Action } from "@/server/policy";
 import { TASK_STATUS_LABELS, type TaskStatus } from "@/shared/constants";
-import { todayIso } from "@/shared/dates";
+import { addDays, todayIso, weekdayOf } from "@/shared/dates";
+import type { TaskFilterParams } from "@/shared/task-filters";
 import type { TaskCommandInput, TaskInput, TaskUpdateInput } from "@/shared/schemas";
-import { TASK_COMMAND_LABELS, TASK_RULES, canTransition, targetStatus, type TaskCommand } from "@/shared/task-flow";
+import { TASK_COMMAND_LABELS, TASK_RULES, canTransition, targetStatus, taskHolderId, type TaskCommand } from "@/shared/task-flow";
 
 // שירות המשימות. מכונת המצבים עצמה (מי, מאיזה מצב, לאיזה מצב) מוגדרת ב-shared/task-flow;
 // כאן נאכפים: הרשאה, גרסה (נעילה אופטימית), חובת טקסט, וכתיבת TaskEvent + AuditEvent באותה טרנזקציה.
@@ -16,7 +17,7 @@ type Tx = Prisma.TransactionClient;
 
 export const TASK_TABS = ["open", "mine", "review", "done"] as const;
 export type TaskTab = (typeof TASK_TABS)[number];
-export type TaskFilters = { tab?: TaskTab; overdue?: boolean; status?: string; caseId?: string };
+export type TaskFilters = TaskFilterParams & { tab?: TaskTab; overdue?: boolean };
 
 const STALE_MESSAGE = "המשימה עודכנה בחלון אחר. רעננו את הדף.";
 
@@ -27,31 +28,142 @@ function asStatus(value: string): TaskStatus {
 
 // ---- קריאה ----
 
+/** המנהלת של הארגון. בדגם יש אחת, והיא מחזיקה בכל משימה שממתינה לבדיקה. */
+async function findPrimaryManager(orgId: string) {
+  return db.user.findFirst({ where: { orgId, role: "MANAGER", active: true }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } });
+}
+
+/** שם מי שמחזיק במשימה עכשיו ("אצל מי עכשיו"), לתצוגה. */
+function holderNameOf(
+  t: { status: string; assigneeId: string | null; createdById: string; assignee: { name: string } | null; createdBy: { name: string } },
+  manager: { id: string; name: string } | null,
+): string | null {
+  const holder = taskHolderId({ status: asStatus(t.status), assigneeId: t.assigneeId, createdById: t.createdById }, manager?.id ?? null);
+  if (!holder) return null;
+  if (holder === t.assigneeId) return t.assignee?.name ?? null;
+  if (holder === t.createdById) return t.createdBy.name;
+  return holder === manager?.id ? manager.name : null;
+}
+
+/** תנאי "אצל מי עכשיו" ב-Prisma. חייב להתאים ל-taskHolderId (נבדק בבדיקות). */
+function holderWhere(target: { id: string; role: string }): Prisma.TaskWhereInput {
+  return {
+    OR: [
+      { status: { in: ["ASSIGNED", "CHANGES_REQUESTED"] }, assigneeId: target.id },
+      { status: "OPEN", OR: [{ assigneeId: target.id }, { assigneeId: null, createdById: target.id }] },
+      // בדגם יש מנהלת אחת, והיא מחזיקה בכל מה שממתין לבדיקה
+      ...(target.role === "MANAGER" ? [{ status: "IN_REVIEW" }] : []),
+    ],
+  };
+}
+
+/** "השבוע" נגמר בשבת (שבוע עבודה ישראלי: ראשון עד שבת). */
+function endOfWeek(today: string): string {
+  return addDays(today, 6 - weekdayOf(today));
+}
+
+function dueWhere(f: TaskFilterParams, today: string): Prisma.TaskWhereInput | null {
+  switch (f.due) {
+    case "overdue": return { status: { not: "COMPLETED" }, dueDate: { lt: today } };
+    case "today": return { dueDate: today };
+    case "week": return { dueDate: { gte: today, lte: endOfWeek(today) } };
+    case "range":
+      if (!f.from && !f.to) return null;
+      return { dueDate: { ...(f.from ? { gte: f.from } : {}), ...(f.to ? { lte: f.to } : {}) } };
+    default: return null;
+  }
+}
+
 export async function listTasks(user: SessionUser, filters: TaskFilters = {}) {
   const today = todayIso();
   const notDone: Prisma.TaskWhereInput = { status: { not: "COMPLETED" } };
-  const where: Prisma.TaskWhereInput = {
-    orgId: user.orgId,
-    deletedAt: null,
-    case: caseScope(user), // עובד רואה משימות של התיקים שלו בלבד
-    ...(filters.caseId ? { caseId: filters.caseId } : {}),
-    ...(filters.tab === "open" ? notDone : {}),
-    ...(filters.tab === "mine" ? { ...notDone, assigneeId: user.id } : {}),
-    ...(filters.tab === "review" ? { status: "IN_REVIEW" } : {}),
-    ...(filters.tab === "done" ? { status: "COMPLETED" } : {}),
-    ...(filters.overdue ? { ...notDone, dueDate: { lt: today } } : {}),
-    ...(filters.status ? { status: filters.status } : {}),
-  };
+
+  // סינון לפי אדם. עובד לא יכול להציץ בעומס של עמית: סינון לפי אדם אחר מחזיר רשימה ריקה
+  let holder: Prisma.TaskWhereInput | null = null;
+  const holderId = filters.holder === "me" ? user.id : filters.holder;
+  if (holderId) {
+    if (user.role === "EMPLOYEE" && holderId !== user.id) return [];
+    const target = await db.user.findFirst({ where: { id: holderId, orgId: user.orgId }, select: { id: true, role: true } });
+    if (!target) return [];
+    holder = holderWhere(target);
+  }
+
+  const due = dueWhere(filters.overdue ? { ...filters, due: "overdue" } : filters, today);
+  const and: Prisma.TaskWhereInput[] = [
+    ...(filters.tab === "open" ? [notDone] : []),
+    ...(filters.tab === "mine" ? [notDone, { assigneeId: user.id }] : []),
+    ...(filters.tab === "review" ? [{ status: "IN_REVIEW" }] : []),
+    ...(filters.tab === "done" ? [{ status: "COMPLETED" }] : []),
+    ...(filters.status ? [{ status: filters.status }] : []),
+    ...(filters.priority ? [{ priority: filters.priority }] : []),
+    ...(holder ? [holder] : []),
+    ...(due ? [due] : []),
+  ];
   const rows = await db.task.findMany({
-    where,
+    where: {
+      orgId: user.orgId,
+      deletedAt: null,
+      case: caseScope(user), // עובד רואה משימות של התיקים שלו בלבד
+      ...(filters.caseId ? { caseId: filters.caseId } : {}),
+      AND: and,
+    },
     orderBy: { createdAt: "desc" },
+    include: {
+      case: { select: { id: true, title: true, internalNumber: true } },
+      assignee: { select: { name: true } },
+      createdBy: { select: { name: true } },
+    },
+  });
+  const manager = await findPrimaryManager(user.orgId);
+  // לפי מועד יעד עולה, משימות בלי מועד בסוף (המיון נעשה כאן כי תמיכה ב-nulls last שונה בין מסדים)
+  return rows
+    .map((r) => ({ ...r, holderName: holderNameOf(r, manager) }))
+    .sort((a, b) => (a.dueDate ?? "9999-99-99").localeCompare(b.dueDate ?? "9999-99-99"));
+}
+
+/** מי שאפשר לסנן לפיו (כל הצוות), למנהלת. עובד יכול לסנן רק לפי עצמו, ולכן לא מקבל רשימה. */
+export async function listTeamMembers(user: SessionUser) {
+  authorize(user, "task:team-load", { orgId: user.orgId });
+  const rows = await db.user.findMany({
+    where: { orgId: user.orgId, active: true, role: { in: ["MANAGER", "EMPLOYEE"] } },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, role: true },
+  });
+  // המנהלת ראשונה, אחריה העובדים לפי שם
+  return [...rows.filter((r) => r.role === "MANAGER"), ...rows.filter((r) => r.role !== "MANAGER")];
+}
+
+/**
+ * עומס צוות (לשונית "לפי אדם", מנהלת בלבד): לכל אחד בצוות, כולל המנהלת, המשימות שאצלו עכשיו,
+ * כמה מהן באיחור וכמה הוחזרו לתיקון. השיוך לאדם הוא "אצל מי עכשיו" (taskHolderId).
+ */
+export async function getTeamWorkload(user: SessionUser) {
+  const people = await listTeamMembers(user);
+  const managerId = (await findPrimaryManager(user.orgId))?.id ?? null;
+  const today = todayIso();
+  const tasks = await db.task.findMany({
+    where: { orgId: user.orgId, deletedAt: null, status: { not: "COMPLETED" } },
     include: {
       case: { select: { id: true, title: true, internalNumber: true } },
       assignee: { select: { name: true } },
     },
   });
-  // לפי מועד יעד עולה, משימות בלי מועד בסוף (המיון נעשה כאן כי תמיכה ב-nulls last שונה בין מסדים)
-  return rows.sort((a, b) => (a.dueDate ?? "9999-99-99").localeCompare(b.dueDate ?? "9999-99-99"));
+  const byHolder = new Map<string, typeof tasks>();
+  for (const t of tasks) {
+    const holder = taskHolderId({ status: asStatus(t.status), assigneeId: t.assigneeId, createdById: t.createdById }, managerId);
+    if (!holder) continue;
+    byHolder.set(holder, [...(byHolder.get(holder) ?? []), t]);
+  }
+  return people.map((person) => {
+    const mine = (byHolder.get(person.id) ?? []).sort((a, b) => (a.dueDate ?? "9999-99-99").localeCompare(b.dueDate ?? "9999-99-99"));
+    return {
+      user: person,
+      total: mine.length,
+      overdue: mine.filter((t) => t.dueDate !== null && t.dueDate < today).length,
+      returned: mine.filter((t) => t.status === "CHANGES_REQUESTED").length,
+      tasks: mine,
+    };
+  });
 }
 
 export async function getTaskDetail(user: SessionUser, id: string) {
@@ -66,7 +178,8 @@ export async function getTaskDetail(user: SessionUser, id: string) {
   });
   if (!task) throw new NotFoundError("המשימה לא נמצאה");
   authorize(user, "task:read", { orgId: task.orgId, memberUserIds: task.case.members.map((m) => m.userId) });
-  return task;
+  const manager = await findPrimaryManager(user.orgId);
+  return { ...task, holderName: holderNameOf(task, manager) };
 }
 
 /** תיקים ועובדים לטופס "משימה חדשה" (מנהלת בלבד). תיק סגור לא מוצע. */
@@ -116,14 +229,15 @@ export async function createTask(user: SessionUser, input: TaskInput): Promise<{
         instructions: input.instructions ?? null,
         priority: input.priority,
         status: input.assigneeId ? "ASSIGNED" : "OPEN",
-        assigneeId: input.assigneeId ?? null,
+        // בלי בחירת עובד המשימה נשארת אצל היוצרת (מנהלת), בסטטוס OPEN
+        assigneeId: input.assigneeId ?? user.id,
         createdById: user.id,
         dueDate: input.dueDate ?? null,
       },
       include: { assignee: { select: { name: true } } },
     });
     await tx.taskEvent.create({ data: { orgId: user.orgId, taskId: created.id, actorId: user.id, type: "CREATED" } });
-    if (created.assignee) {
+    if (created.assignee && input.assigneeId) {
       await tx.taskEvent.create({
         data: { orgId: user.orgId, taskId: created.id, actorId: user.id, type: "ASSIGNED", note: `הועברה אל ${created.assignee.name}` },
       });

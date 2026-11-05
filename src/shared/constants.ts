@@ -105,3 +105,11 @@ export const INTEGRATION_STATUS_LABELS: Record<IntegrationStatus, string> = {
   NOT_CONFIGURED: "לא מוגדר",
   MOCK_CONNECTED: "מחובר – דמה",
 };
+
+export const CASE_NOTE_KINDS = ["CALL", "MEETING", "NOTE"] as const;
+export type CaseNoteKind = (typeof CASE_NOTE_KINDS)[number];
+export const CASE_NOTE_KIND_LABELS: Record<CaseNoteKind, string> = {
+  CALL: "שיחת טלפון",
+  MEETING: "פגישה",
+  NOTE: "הערה",
+};

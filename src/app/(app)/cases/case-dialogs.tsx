@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { FormDialog } from "@/components/form-dialog";
 import { SelectField, TextAreaField, TextField } from "@/components/form-fields";
 import { CASE_STATUS_LABELS, CASE_STATUSES } from "@/shared/constants";
-import { saveCaseAction, setMembersAction } from "./actions";
+import { saveBlockersAction, saveCaseAction, setMembersAction } from "./actions";
 
 export type Option = { value: string; label: string };
 
@@ -76,6 +76,29 @@ export function CaseFormDialog({
           <SelectField name="responsibleUserId" label="אחראי" required options={users} defaultValue={values?.responsibleUserId ?? users[0]?.value} error={errors.responsibleUserId} />
           <TextAreaField name="summary" label="סיכום מצב" defaultValue={values?.summary ?? ""} error={errors.summary} />
           <TextField name="nextAction" label="פעולה הבאה" defaultValue={values?.nextAction ?? ""} error={errors.nextAction} />
+        </>
+      )}
+    </FormDialog>
+  );
+}
+
+/** חסם בתיק: מה עוצר אותו כרגע. השארת השדה ריק מסירה את החסם. */
+export function BlockersDialog({ caseId, version, blockers }: { caseId: string; version: number; blockers: string | null }) {
+  return (
+    <FormDialog
+      triggerLabel={blockers ? "עריכת חסם" : "הוספת חסם"}
+      triggerVariant="outline"
+      triggerSize="sm"
+      title="חסם בתיק"
+      description="מה עוצר את התיק כרגע. השאירו ריק כדי להסיר את החסם."
+      submitLabel="שמירה"
+      action={saveBlockersAction}
+    >
+      {(errors) => (
+        <>
+          <input type="hidden" name="caseId" value={caseId} />
+          <input type="hidden" name="version" value={version} />
+          <TextAreaField name="blockers" label="החסם" defaultValue={blockers ?? ""} error={errors.blockers} />
         </>
       )}
     </FormDialog>

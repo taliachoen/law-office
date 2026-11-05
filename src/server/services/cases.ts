@@ -6,7 +6,7 @@ import { ConflictError, NotFoundError, ValidationError } from "@/server/errors";
 import { authorize, caseScope } from "@/server/policy";
 import { assertValidOption } from "@/server/services/lookups";
 import { todayIso } from "@/shared/dates";
-import type { CaseInput, CaseUpdateInput } from "@/shared/schemas";
+import type { CaseBlockersInput, CaseInput, CaseUpdateInput } from "@/shared/schemas";
 
 // שירות התיקים. כמו בשירות הלקוחות: הרשאה בכל פעולה, ו-AuditEvent באותה טרנזקציה.
 
@@ -101,6 +101,7 @@ async function nextInternalNumber(tx: Tx, orgId: string): Promise<string> {
 async function assertActiveUser(tx: Tx, orgId: string, userId: string) {
   const found = await tx.user.findFirst({ where: { id: userId, orgId, active: true } });
   if (!found) throw new ValidationError("האחראי שנבחר אינו משתמש פעיל");
+  if (found.role === "SECRETARY") throw new ValidationError("האחראי על תיק חייב להיות מנהלת או עובד");
   return found;
 }
 
@@ -202,6 +203,31 @@ export async function updateCase(user: SessionUser, id: string, input: CaseUpdat
       orgId: user.orgId, actorId: user.id, entityType: "Case", entityId: id, caseId: id,
       action: "UPDATE",
       summary: changed.length ? `עודכן התיק (${changed.join(", ")})` : "התיק נשמר ללא שינוי",
+    });
+  });
+}
+
+/**
+ * עריכת החסמים בתיק (מה עוצר אותו כרגע). מנהלת בלבד, עם נעילה אופטימית ו-AuditEvent.
+ * נפרד מ-updateCase כדי שמזכירות, שעורכת את פרטי התיק, לא תוכל לגעת בחסמים.
+ */
+export async function setCaseBlockers(user: SessionUser, input: CaseBlockersInput): Promise<void> {
+  authorize(user, "case:edit-blockers", { orgId: user.orgId });
+  await db.$transaction(async (tx) => {
+    const existing = await tx.case.findFirst({ where: { id: input.caseId, orgId: user.orgId, deletedAt: null } });
+    if (!existing) throw new NotFoundError("התיק לא נמצא");
+    const next = input.blockers ?? null;
+    if (input.version !== existing.version) throw new ConflictError("התיק עודכן בחלון אחר. רעננו את הדף.");
+    if ((existing.blockers ?? null) === next) return;
+
+    const result = await tx.case.updateMany({
+      where: { id: existing.id, orgId: user.orgId, deletedAt: null, version: existing.version },
+      data: { blockers: next, version: { increment: 1 } },
+    });
+    if (result.count === 0) throw new ConflictError("התיק עודכן בחלון אחר. רעננו את הדף.");
+    await writeAudit(tx, {
+      orgId: user.orgId, actorId: user.id, entityType: "Case", entityId: existing.id, caseId: existing.id,
+      action: "BLOCKERS", summary: next ? `עודכן חסם בתיק: ${next}` : "החסם בתיק הוסר",
     });
   });
 }

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getCurrentUser } from "@/server/auth/current-user";
+import { can } from "@/server/policy";
 import { listCases } from "@/server/services/cases";
 import { listClients } from "@/server/services/clients";
 import { getActiveOptions, getLabelMap } from "@/server/services/lookups";
@@ -17,14 +18,15 @@ type SearchParams = { q?: string; status?: string; caseType?: string; responsibl
 export default async function CasesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const { q = "", status = "", caseType = "", responsibleId = "" } = await searchParams;
   const user = await getCurrentUser();
-  const isManager = user.role === "MANAGER";
+  // מנהלת ומזכירות יוצרות ועורכות תיקים
+  const canWrite = can(user, "case:write", { orgId: user.orgId });
 
   const [cases, typeOptions, typeLabel, options, clients] = await Promise.all([
     listCases(user, { q, status, caseType, responsibleId }),
     getActiveOptions(user, "CASE_TYPE"),
     getLabelMap(user, "CASE_TYPE"),
-    isManager ? loadCaseFormOptions(user) : null,
-    isManager ? listClients(user) : null,
+    canWrite ? loadCaseFormOptions(user) : null,
+    canWrite ? listClients(user) : null,
   ]);
   const filtered = [q, status, caseType, responsibleId].some((v) => v !== "");
 

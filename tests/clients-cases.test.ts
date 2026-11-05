@@ -35,6 +35,8 @@ beforeAll(async () => {
       { orgId, list: "CASE_TYPE", code: "DIVORCE", label: "גירושין" },
       { orgId, list: "CASE_TYPE", code: "ALIMONY", label: "מזונות" },
       { orgId, list: "COURT", code: "FAMILY_COURT", label: "בית משפט לענייני משפחה" },
+      { orgId, list: "CONTACT_STATUS", code: "ACTIVE", label: "פעיל" },
+      { orgId, list: "CONTACT_STATUS", code: "AWAITING_CLIENT", label: "ממתין לתגובת הלקוח" },
     ],
   });
 

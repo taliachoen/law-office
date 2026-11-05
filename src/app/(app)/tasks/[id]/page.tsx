@@ -63,7 +63,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
         <Fact label="תיק">
           <Link href={`/cases/${task.case.id}`} className="text-navy-700 hover:underline">{task.case.title}</Link>
         </Fact>
-        <Fact label="עובד">{task.assignee?.name}</Fact>
+        <Fact label="אצל מי עכשיו">{task.holderName}</Fact>
         <Fact label="מועד יעד">
           {task.dueDate && (
             <span className={late ? "font-semibold text-red-700" : ""}>
