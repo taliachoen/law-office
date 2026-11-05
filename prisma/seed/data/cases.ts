@@ -27,6 +27,15 @@ export type SeedCase = {
 const dropbox = (n: string) => `/תיקים/${n}`;
 export const dropboxPathFor = (internalNumber: string) => dropbox(internalNumber);
 
+// חסמים לפי אינדקס התיק (רק בתיקים פעילים).
+export const caseBlockers: Record<number, string> = {
+  0: "ממתינים לתצהיר משלים מהלקוחה לפני הגשת כתב התביעה.",
+  3: "הצד שכנגד לא השיב לדרישה להמצאת מסמכים בנקאיים.",
+  5: "ממתינים להחלטה בבקשה לדחיית דיון.",
+  7: "חסרה הערכת שמאי למקרקעין.",
+  10: "נדרש אישור האפוטרופוס הכללי לפני המשך.",
+};
+
 export const cases: SeedCase[] = [
   {
     clientIdx: 0, title: "לביא – גירושין", internalNumber: "2026-001", courtCaseNumber: "12345-01-26",

@@ -5,11 +5,12 @@ import { writeAudit } from "../../src/server/audit";
 import { addDays, todayIso } from "../../src/shared/dates";
 import { LOOKUP_LISTS, type TaskEventType } from "../../src/shared/constants";
 import { DEFAULT_LOOKUPS } from "../../src/shared/lookup-defaults";
-import { cases, dropboxPathFor } from "./data/cases";
-import { clients } from "./data/clients";
+import { caseBlockers, cases, dropboxPathFor } from "./data/cases";
+import { clientContactStatus, clients } from "./data/clients";
 import { deadlines } from "./data/deadlines";
 import { emails } from "./data/emails";
 import { inboxItems } from "./data/inbox";
+import { notes } from "./data/notes";
 import { tasks } from "./data/tasks";
 import { ORG_NAME, users, type UserKey } from "./data/users";
 
@@ -54,10 +55,10 @@ async function main() {
 
       // ---- לקוחות ואנשי קשר ----
       const clientIds: string[] = [];
-      for (const c of clients) {
+      for (const [clientIdx, c] of clients.entries()) {
         const { contacts, ...fields } = c;
         const created = await tx.client.create({
-          data: { orgId, ...fields, contacts: { create: contacts.map((ct) => ({ orgId, ...ct })) } },
+          data: { orgId, ...fields, contactStatus: clientContactStatus[clientIdx] ?? "ACTIVE", contacts: { create: contacts.map((ct) => ({ orgId, ...ct })) } },
         });
         clientIds.push(created.id);
         await writeAudit(tx, {
@@ -68,7 +69,7 @@ async function main() {
 
       // ---- תיקים וחברי תיק ----
       const caseIds: string[] = [];
-      for (const c of cases) {
+      for (const [caseIdx, c] of cases.entries()) {
         const created = await tx.case.create({
           data: {
             orgId,
@@ -84,6 +85,7 @@ async function main() {
             status: c.status,
             summary: c.summary,
             nextAction: c.nextAction,
+            blockers: caseBlockers[caseIdx] ?? null,
             dropboxFolderPath: dropboxPathFor(c.internalNumber),
             members: { create: c.members.map((m) => ({ orgId, userId: userId[m] })) },
           },
@@ -149,6 +151,25 @@ async function main() {
         await writeAudit(tx, {
           orgId, actorId: manager, entityType: "Task", entityId: created.id, caseId,
           action: "CREATE", summary: `נוצרה משימה: ${t.title}`,
+        });
+      }
+
+      // ---- תיעוד בתיק ----
+      for (const n of notes) {
+        const caseId = caseIds[n.caseIdx]!;
+        const theCase = cases[n.caseIdx]!;
+        if (n.createdBy !== "manager" && n.createdBy !== "secretary" && !theCase.members.includes(n.createdBy)) {
+          throw new Error(`תיעוד בתיק "${theCase.title}": ${n.createdBy} אינו חבר בתיק`);
+        }
+        const created = await tx.caseNote.create({
+          data: {
+            orgId, caseId, kind: n.kind, participants: n.participants, body: n.body,
+            occurredAt: ago(n.daysAgo), createdById: userId[n.createdBy], createdAt: ago(n.daysAgo),
+          },
+        });
+        await writeAudit(tx, {
+          orgId, actorId: userId[n.createdBy], entityType: "CaseNote", entityId: created.id, caseId,
+          action: "CREATE", summary: "נוסף תיעוד בתיק",
         });
       }
 
@@ -232,7 +253,7 @@ async function main() {
 
   console.log(
     `seed הושלם: ${users.length} משתמשים, ${clients.length} לקוחות, ${cases.length} תיקים, ` +
-      `${tasks.length} משימות, ${inboxItems.length} חומר חדש, ${deadlines.length} מועדים, ${emails.length} מיילים`,
+      `${tasks.length} משימות, ${notes.length} תיעודים, ${inboxItems.length} חומר חדש, ${deadlines.length} מועדים, ${emails.length} מיילים`,
   );
 }
 

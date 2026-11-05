@@ -26,7 +26,7 @@ model User {
   orgId     String
   name      String
   email     String
-  role      String // MANAGER | EMPLOYEE
+  role      String // MANAGER | EMPLOYEE | SECRETARY
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -39,6 +39,7 @@ model User {
   createdDocuments     Document[]
   uploadedVersions     DocumentVersion[]
   createdInbox         InboxItem[]
+  caseNotes            CaseNote[]
   responsibleDeadlines Deadline[]
 
   @@unique([orgId, email])
@@ -46,19 +47,20 @@ model User {
 }
 
 model Client {
-  id          String    @id @default(cuid())
-  orgId       String
-  type        String // PERSON | COMPANY
-  fullName    String
-  idNumber    String?
-  phone       String?
-  email       String?
-  address     String?
-  notes       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
-  deletedById String?
+  id            String    @id @default(cuid())
+  orgId         String
+  type          String // PERSON | COMPANY
+  fullName      String
+  idNumber      String?
+  phone         String?
+  email         String?
+  address       String?
+  notes         String?
+  contactStatus String    @default("ACTIVE") // קוד מהרשימה CONTACT_STATUS
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+  deletedById   String?
 
   contacts Contact[]
   cases    Case[]
@@ -98,6 +100,7 @@ model Case {
   status            String // ACTIVE | PENDING | CLOSED
   summary           String?
   nextAction        String?
+  blockers          String? // מה עוצר את התיק כרגע
   dropboxFolderPath String?
   version           Int       @default(1)
   createdAt         DateTime  @default(now())
@@ -111,6 +114,7 @@ model Case {
   tasks           Task[]
   documents       Document[]
   inboxItems      InboxItem[]
+  notes           CaseNote[]
   deadlines       Deadline[]
 
   @@unique([orgId, internalNumber])
@@ -143,6 +147,7 @@ model Task {
   priority          String // LOW | NORMAL | HIGH | URGENT
   status            String // OPEN | ASSIGNED | IN_REVIEW | CHANGES_REQUESTED | COMPLETED
   assigneeId        String?
+  inboxItemId       String? // אם נוצרה מפריט חומר חדש (לסינון לפי מקור)
   createdById       String
   dueDate           String? // YYYY-MM-DD
   completionSummary String?
@@ -155,6 +160,7 @@ model Task {
 
   case      Case        @relation(fields: [caseId], references: [id])
   assignee  User?       @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  inboxItem InboxItem?  @relation(fields: [inboxItemId], references: [id])
   createdBy User        @relation("TaskCreator", fields: [createdById], references: [id])
   events    TaskEvent[]
   documents Document[]
@@ -162,6 +168,29 @@ model Task {
   @@index([orgId, deletedAt])
   @@index([caseId])
   @@index([assigneeId])
+}
+
+// תיעוד בתיק: שיחות, פגישות והערות (סעיף 6.13 במפרט).
+model CaseNote {
+  id           String    @id @default(cuid())
+  orgId        String
+  caseId       String
+  kind         String // CALL | MEETING | NOTE
+  occurredAt   DateTime // מתי זה קרה
+  participants String?
+  body         String
+  createdById  String
+  version      Int       @default(1)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+  deletedById  String?
+
+  case      Case @relation(fields: [caseId], references: [id])
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@index([orgId, deletedAt])
+  @@index([caseId, occurredAt])
 }
 
 model TaskEvent {
@@ -184,7 +213,7 @@ model TaskEvent {
 model Document {
   id          String    @id @default(cuid())
   orgId       String
-  caseId      String
+  caseId      String? // null = קובץ של פריט חומר חדש "לשיוך"
   taskId      String?
   inboxItemId String?
   title       String
@@ -195,7 +224,7 @@ model Document {
   deletedAt   DateTime?
   deletedById String?
 
-  case      Case              @relation(fields: [caseId], references: [id])
+  case      Case?             @relation(fields: [caseId], references: [id])
   task      Task?             @relation(fields: [taskId], references: [id])
   inboxItem InboxItem?        @relation(fields: [inboxItemId], references: [id])
   createdBy User              @relation(fields: [createdById], references: [id])
@@ -226,26 +255,35 @@ model DocumentVersion {
 }
 
 model InboxItem {
-  id          String    @id @default(cuid())
-  orgId       String
-  caseId      String? // null = "לשיוך"
-  kind        String
-  title       String
-  note        String?
-  sourceLink  String?
-  urgent      Boolean   @default(false)
-  createdById String
-  viewedById  String?
-  viewedAt    DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
-  deletedById String?
+  id              String    @id @default(cuid())
+  orgId           String
+  caseId          String? // null = "לשיוך"
+  kind            String
+  title           String
+  note            String?
+  sourceLink      String?
+  urgent          Boolean   @default(false)
+  source          String    @default("MANUAL") // MANUAL | EMAIL | DROPBOX
+  externalFileId  String? // מזהה הקובץ במקור (Dropbox), למניעת כפילויות
+  externalVersion String?
+  suggestedCaseId String? // הצעת שיוך אוטומטית (אין FK: היא רק הצעה)
+  matchReason     String? // למה הוצע התיק
+  readStatus      String? // NAME_ONLY | TEXT_READ | UNREADABLE
+  createdById     String
+  viewedById      String?
+  viewedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  deletedById     String?
 
   case      Case?      @relation(fields: [caseId], references: [id])
   createdBy User       @relation(fields: [createdById], references: [id])
   documents Document[]
+  tasks     Task[]
 
+  // ערכי NULL נחשבים שונים זה מזה, ולכן פריטים ידניים לא מושפעים
+  @@unique([orgId, source, externalFileId, externalVersion])
   @@index([orgId, deletedAt])
   @@index([caseId])
 }
@@ -316,12 +354,12 @@ model IntegrationConnection {
   @@index([orgId])
 }
 
-// ערכי רשימות הניתנות להגדרה לכל ארגון (סוגי תיקים, ערכאות, סוגי חומר חדש).
+// ערכי רשימות הניתנות להגדרה לכל ארגון (סוגי תיקים, ערכאות, סוגי חומר חדש, סטטוס קשר).
 // הטבלאות העסקיות שומרות את code. ערך שכבר בשימוש מכבים (active=false) ולא מוחקים.
 model LookupOption {
   id        String   @id @default(cuid())
   orgId     String
-  list      String // CASE_TYPE | COURT | INBOX_KIND (ראו LOOKUP_LISTS)
+  list      String // CASE_TYPE | COURT | INBOX_KIND | CONTACT_STATUS (ראו LOOKUP_LISTS)
   code      String
   label     String
   sortOrder Int      @default(0)

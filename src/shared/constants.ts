@@ -2,11 +2,12 @@
 // כל קבוצה מוגדרת כ-tuple כדי ש-zod ו-TypeScript יצאו מאותו מקור.
 // הקובץ מכיל רק סטטוסים של מערכת, שהלוגיקה תלויה בהם.
 
-export const ROLES = ["MANAGER", "EMPLOYEE"] as const;
+export const ROLES = ["MANAGER", "EMPLOYEE", "SECRETARY"] as const;
 export type Role = (typeof ROLES)[number];
 export const ROLE_LABELS: Record<Role, string> = {
   MANAGER: "מנהלת",
   EMPLOYEE: "עובד/ת",
+  SECRETARY: "מזכירות",
 };
 
 export const CLIENT_TYPES = ["PERSON", "COMPANY"] as const;
@@ -26,7 +27,7 @@ export const CASE_STATUS_LABELS: Record<CaseStatus, string> = {
 
 // רשימות הניתנות להגדרה לפי ארגון (סוגי תיקים, ערכאות, סוגי חומר חדש) נשמרות בטבלה LookupOption.
 // כאן רק שמות הרשימות; ערכי ברירת המחדל ב-lookup-defaults.ts.
-export const LOOKUP_LISTS = ["CASE_TYPE", "COURT", "INBOX_KIND"] as const;
+export const LOOKUP_LISTS = ["CASE_TYPE", "COURT", "INBOX_KIND", "CONTACT_STATUS"] as const;
 export type LookupList = (typeof LOOKUP_LISTS)[number];
 
 export const TASK_PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;

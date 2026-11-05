@@ -15,6 +15,17 @@ export type SeedClient = {
   contacts: SeedContact[];
 };
 
+// סטטוס קשר לפי אינדקס הלקוח. מי שלא מופיע כאן: ACTIVE (ברירת המחדל).
+// לקוחות 4 ו-9 הם של תיקים סגורים.
+export const clientContactStatus: Record<number, "AWAITING_CLIENT" | "UNAVAILABLE" | "TREATMENT_ENDED"> = {
+  1: "AWAITING_CLIENT",
+  4: "TREATMENT_ENDED",
+  5: "AWAITING_CLIENT",
+  7: "UNAVAILABLE",
+  8: "AWAITING_CLIENT",
+  9: "TREATMENT_ENDED",
+};
+
 export const clients: SeedClient[] = [
   {
     type: "PERSON", fullName: "דנה לביא", idNumber: "999000001", phone: "050-0000001",

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import type { Role } from "@/shared/constants";
 
 // רק מסכים שכבר נבנו מופיעים בתפריט (אין קישורים מתים).
 // כל שלב מוסיף כאן את המסכים שלו.
@@ -15,7 +16,7 @@ const NAV_ITEMS: { href: string; label: string; managerOnly?: boolean }[] = [
 ];
 
 // managerOnly רק מסתיר קישור מהתפריט; ההרשאה האמיתית נאכפת בשרת בכל מסך.
-export function Sidebar({ role }: { role: "MANAGER" | "EMPLOYEE" }) {
+export function Sidebar({ role }: { role: Role }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 

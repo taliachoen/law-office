@@ -28,6 +28,12 @@ export const DEFAULT_LOOKUPS = {
     { code: "LETTER", label: "מכתב" },
     { code: "OTHER", label: "אחר" },
   ],
+  CONTACT_STATUS: [
+    { code: "ACTIVE", label: "פעיל" },
+    { code: "AWAITING_CLIENT", label: "ממתין לתגובת הלקוח" },
+    { code: "UNAVAILABLE", label: "לא זמין" },
+    { code: "TREATMENT_ENDED", label: "הסתיים הטיפול" },
+  ],
 } as const satisfies Record<LookupList, readonly { code: string; label: string }[]>;
 
 /** קודי ברירת המחדל של רשימה, לטיפוס בטוח בקבצי ה-seed. */
